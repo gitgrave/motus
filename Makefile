@@ -70,15 +70,14 @@ dev-deploy-k8s: ## Build dev image, push to IMAGE_REGISTRY, and deploy to K8s
 	@echo "Deleting existing deployments to avoid stale-pod interference..."
 	@kubectl delete deployment,job -n motion -l app.kubernetes.io/instance=motus --ignore-not-found --wait
 	@echo ""
-	echo "Deploying to Kubernetes with immutable digest..."; \
-	helm upgrade --install motus ./charts/motus \
+	@echo "Deploying to Kubernetes with immutable digest..."; \
+	helm template motus ./charts/motus \
 		--namespace motion \
 		-f ./charts/motus/values-dev.yaml \
 		--set image.repository="$(IMAGE_REGISTRY)/$(IMAGE_NAME)" \
 		--set image.tag="$(IMAGE_TAG)" \
 		--set image.digest="$$IMAGE_DIGEST" \
-		--wait \
-		--timeout=5m
+	| kubectl apply -n motion -f - --wait
 	@echo ""
 	@echo "Development deployment complete!"
 	@echo ""

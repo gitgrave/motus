@@ -161,6 +161,13 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		api.RespondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if req.UniqueID != "" && req.UniqueID != device.UniqueID {
+		if err := validation.ValidateDeviceUniqueID(req.UniqueID); err != nil {
+			api.RespondError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		device.UniqueID = req.UniqueID
+	}
 	if req.Name != "" {
 		if err := validation.ValidateName(req.Name); err != nil {
 			api.RespondError(w, http.StatusBadRequest, err.Error())

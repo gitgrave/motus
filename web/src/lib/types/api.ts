@@ -53,6 +53,14 @@ export interface UpdateUserPayload {
   disabled?: boolean;
 }
 
+/** Payload for updating the authenticated user's own profile. */
+export interface UpdateProfilePayload {
+  name?: string;
+  email?: string;
+  currentPassword?: string;
+  newPassword?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Device
 // ---------------------------------------------------------------------------

@@ -18,6 +18,8 @@
 	// Profile fields
 	let name = '';
 	let email = '';
+	let originalName = '';
+	let originalEmail = '';
 
 	// Password fields
 	let currentPassword = '';
@@ -40,6 +42,8 @@
 		if ($currentUser) {
 			name = ($currentUser.name as string) || '';
 			email = ($currentUser.email as string) || '';
+			originalName = name;
+			originalEmail = email;
 		}
 
 		// Load current settings
@@ -80,6 +84,21 @@
 		message = '';
 
 		try {
+			const profileChanged = name !== originalName || email !== originalEmail;
+			const passwordChanging = !!newPassword;
+
+			if (profileChanged || passwordChanging) {
+				const updated = await api.updateProfile({
+					name: name || undefined,
+					email: email || undefined,
+					currentPassword: currentPassword || undefined,
+					newPassword: newPassword || undefined,
+				});
+				currentUser.set(updated);
+				originalName = updated.name;
+				originalEmail = updated.email;
+			}
+
 			// Save display preferences to settings store (persisted to localStorage)
 			settings.set({
 				dateFormat,
@@ -106,8 +125,8 @@
 			setTimeout(() => {
 				message = '';
 			}, 3000);
-		} catch (error: any) {
-			message = `Failed to save: ${error.message || 'Unknown error'}`;
+		} catch (error: unknown) {
+			message = `Failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`;
 			messageType = 'error';
 		} finally {
 			saving = false;
@@ -184,7 +203,6 @@
 							name="email"
 							type="email"
 							bind:value={email}
-							disabled
 						/>
 					</div>
 				</section>

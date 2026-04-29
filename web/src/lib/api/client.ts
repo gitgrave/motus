@@ -26,6 +26,7 @@ import type {
   UpdateDevicePayload,
   UpdateGeofencePayload,
   UpdateNotificationPayload,
+  UpdateProfilePayload,
   UpdateUserPayload,
   User,
   UserStats,
@@ -277,6 +278,13 @@ export const api = {
   // ---------------------------------------------------------------------------
   // Users (admin only)
   // ---------------------------------------------------------------------------
+
+  /** Update the authenticated user's own profile (name, email, password). */
+  updateProfile: (data: UpdateProfilePayload) =>
+    request<User>("/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   /** List all users (admin only). */
   getUsers: () => request<User[]>("/users"),

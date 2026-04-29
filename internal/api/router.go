@@ -73,6 +73,9 @@ type Handlers struct {
 	DeleteShare     http.HandlerFunc
 	GetSharedDevice http.HandlerFunc
 
+	// Self-service profile update.
+	UpdateProfile http.HandlerFunc
+
 	// Admin: User management.
 	ListUsers           http.HandlerFunc
 	CreateUser          http.HandlerFunc
@@ -314,6 +317,9 @@ func NewRouter(h Handlers, authMiddleware, adminMiddleware func(http.Handler) ht
 		// Session management.
 		r.Get("/api/sessions", h.ListSessions)
 		r.Delete("/api/sessions/{id}", h.DeleteSession)
+
+		// Self-service profile update (any authenticated user).
+		r.Put("/api/profile", h.UpdateProfile)
 
 		// Sudo: status and end must be accessible by the impersonated user
 		// (who may not be an admin), so they live outside the admin group.

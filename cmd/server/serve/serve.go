@@ -281,6 +281,8 @@ func Run() {
 		DeleteShare:     shareHandler.DeleteShare,
 		GetSharedDevice: shareHandler.GetSharedDevice,
 
+		UpdateProfile: userHandler.UpdateProfile,
+
 		ListUsers:           userHandler.List,
 		CreateUser:          userHandler.Create,
 		UpdateUser:          userHandler.Update,

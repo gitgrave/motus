@@ -272,12 +272,12 @@ func (r *DeviceRepository) Update(ctx context.Context, d *model.Device) error {
 	attrs, _ := json.Marshal(d.Attributes)
 
 	_, err := r.pool.Exec(ctx,
-		`UPDATE devices SET name = $1, protocol = $2, status = $3, speed_limit = $4, last_update = $5,
-			position_id = $6, phone = $7, model = $8, contact = $9, category = $10, disabled = $11,
-			mileage = $12, pending_mileage = $13, attributes = $14,
+		`UPDATE devices SET unique_id = $1, name = $2, protocol = $3, status = $4, speed_limit = $5, last_update = $6,
+			position_id = $7, phone = $8, model = $9, contact = $10, category = $11, disabled = $12,
+			mileage = $13, pending_mileage = $14, attributes = $15,
 			updated_at = NOW()
-		 WHERE id = $15`,
-		d.Name, d.Protocol, d.Status, d.SpeedLimit, d.LastUpdate,
+		 WHERE id = $16`,
+		d.UniqueID, d.Name, d.Protocol, d.Status, d.SpeedLimit, d.LastUpdate,
 		d.PositionID, d.Phone, d.Model, d.Contact, d.Category, d.Disabled,
 		d.Mileage, d.PendingMileage, attrs,
 		d.ID,

@@ -673,7 +673,6 @@
 			label="Identifier"
 			placeholder="ABC123"
 			required
-			disabled={!!editingDevice}
 			bind:value={formUniqueId}
 		/>
 		<Input name="phone" label="Phone" placeholder="+1234567890" bind:value={formPhone} />

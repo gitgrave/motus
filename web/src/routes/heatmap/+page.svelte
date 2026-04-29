@@ -167,23 +167,28 @@
 
 		try {
 			const { from, to } = getDateRange();
-
-			const params: {
-				from: string;
-				to: string;
-				limit: number;
-				deviceId?: number;
-			} = {
-				from: from.toISOString(),
-				to: to.toISOString(),
-				limit: 50000
-			};
+			const fromISO = from.toISOString();
+			const toISO = to.toISOString();
 
 			if (selectedDeviceId) {
-				params.deviceId = parseInt(selectedDeviceId);
+				// Single device — direct history query.
+				positions = await api.getPositions({
+					deviceId: parseInt(selectedDeviceId),
+					from: fromISO,
+					to: toISO,
+				});
+			} else {
+				// All devices — fan out per device so we get full history.
+				// The no-deviceId endpoint returns only the latest position per
+				// device, not the range history needed for a heatmap.
+				const results = await Promise.all(
+					devices.map((d) =>
+						api.getPositions({ deviceId: d.id, from: fromISO, to: toISO })
+							.catch(() => [] as Position[]),
+					),
+				);
+				positions = results.flat();
 			}
-
-			positions = await api.getPositions(params);
 
 			if (positions.length > 0) {
 				fitMapToPositions();

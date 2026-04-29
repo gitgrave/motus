@@ -19,9 +19,12 @@ func ValidateWebhookURL(urlStr string) error {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
 
-	// Require HTTPS, with exception for localhost during development.
-	if u.Scheme != "https" && u.Hostname() != "localhost" && u.Hostname() != "127.0.0.1" {
-		return fmt.Errorf("webhook URL must use HTTPS")
+	// Only HTTP/HTTPS are valid webhook schemes — block file://, javascript:,
+	// etc. Scheme choice between the two is up to the operator; HTTPS is
+	// recommended but not enforced (in-cluster Services often serve plain
+	// HTTP, and SSRF is gated separately).
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("webhook URL must use http or https")
 	}
 
 	// Skip IP resolution for localhost (test/dev convenience).

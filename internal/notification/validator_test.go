@@ -12,14 +12,16 @@ func TestValidateWebhookURL(t *testing.T) {
 		wantErr bool
 	}{
 		{"empty URL", "", true},
-		{"HTTP not allowed for external host", "http://hooks.example.com/webhook", true},
 		{"HTTP localhost allowed", "http://localhost:8080/hook", false},
 		{"HTTP 127.0.0.1 allowed", "http://127.0.0.1:8080/hook", false},
 		{"invalid URL", "://bad", true},
-		{"FTP scheme", "ftp://example.com/file", true},
+		{"FTP scheme rejected", "ftp://example.com/file", true},
+		{"file scheme rejected", "file:///etc/passwd", true},
 		// HTTPS with private IPs (resolves but blocked)
 		{"HTTPS to private 10.x", "https://10.0.0.1/hook", true},
 		{"HTTPS to private 192.168", "https://192.168.1.1/hook", true},
+		// HTTP to private IPs is also blocked unless allowlisted.
+		{"HTTP to private 10.x", "http://10.0.0.1/hook", true},
 	}
 
 	for _, tt := range tests {

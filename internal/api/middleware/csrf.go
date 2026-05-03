@@ -50,9 +50,10 @@ func CSRF(cfg CSRFConfig) func(http.Handler) http.Handler {
 		csrfProtected := protect(tokenInjector)
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Bearer token requests are exempt from CSRF; they come from
-			// API clients, not browsers, and are not subject to CSRF attacks.
-			if isBearerTokenRequest(r) {
+			// Bearer token / X-Auth-Token requests are exempt from CSRF; they
+			// originate from non-cookie auth flows (API clients or PWA
+			// localStorage fallbacks) and are not subject to CSRF attacks.
+			if isBearerTokenRequest(r) || r.Header.Get("X-Auth-Token") != "" {
 				next.ServeHTTP(w, r)
 				return
 			}

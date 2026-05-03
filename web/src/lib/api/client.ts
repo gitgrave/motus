@@ -32,6 +32,7 @@ import type {
   UserStats,
 } from "$lib/types/api";
 import { currentUser } from "$lib/stores/auth";
+import { getStoredAuthToken } from "$lib/auth-token-store";
 import * as svelteStore from "svelte/store";
 
 const API_BASE = "/api";
@@ -61,6 +62,17 @@ async function request<T>(
   const method = (options.method || "GET").toUpperCase();
   if (csrfToken && ["POST", "PUT", "DELETE", "PATCH"].includes(method)) {
     (headers as Record<string, string>)["X-CSRF-Token"] = csrfToken;
+  }
+
+  // localStorage + IndexedDB fallback for iOS WebKit / Firefox-iOS PWA
+  // contexts that evict the session cookie (and sometimes localStorage
+  // itself). getStoredAuthToken checks localStorage first and falls back
+  // to IndexedDB, re-hydrating localStorage from IDB when needed. This
+  // closes the cold-start race where route components fire requests
+  // before the layout's startup hydration completes.
+  const authToken = await getStoredAuthToken();
+  if (authToken) {
+    (headers as Record<string, string>)["X-Auth-Token"] = authToken;
   }
 
   const response = await fetch(`${API_BASE}${endpoint}`, {

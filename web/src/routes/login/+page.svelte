@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api/client';
+	import { setAuthToken } from '$lib/auth-token-store';
 	import { currentUser, isAuthenticated } from '$lib/stores/auth';
 	import { wsManager } from '$lib/stores/websocket';
 	import {
@@ -100,6 +101,21 @@
 			history.replaceState({}, '', url.toString());
 		}
 
+		// Auto-redirect when already authenticated. iOS PWAs sometimes restore
+		// the URL as /login from a previous redirect even though the user has
+		// a valid auth token in localStorage/IndexedDB — without this check
+		// they'd stare at the login form despite being authenticated.
+		try {
+			const user = await api.getCurrentUser();
+			currentUser.set(user);
+			isAuthenticated.set(true);
+			wsManager.connect();
+			goto('/');
+			return;
+		} catch {
+			// Not authenticated; show the login form normally.
+		}
+
 		// Fetch OIDC availability for this server.
 		try {
 			const res = await fetch('/api/auth/oidc/config');
@@ -131,6 +147,14 @@
 			const user = await api.login(email, password, rememberMe);
 			currentUser.set(user);
 			isAuthenticated.set(true);
+
+			// Persist the server-issued auth token to both localStorage and
+			// IndexedDB so iOS PWA cold starts (which purge localStorage) can
+			// re-hydrate the token via the X-Auth-Token header. Only set for
+			// remember-me logins.
+			const authToken = (user as { authToken?: string }).authToken;
+			await setAuthToken(rememberMe && authToken ? authToken : null);
+
 			wsManager.connect();
 
 			// Generate and send a login token to the native app so it can

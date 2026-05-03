@@ -10,11 +10,13 @@ import (
 )
 
 // Auth returns middleware that authenticates requests via bearer token
-// (API key), legacy user token, or session cookie.
+// (API key), legacy user token, X-Auth-Token header, or session cookie.
 //
 // Bearer tokens are checked first against the api_keys table for multi-key
 // support with permissions. If no match is found, the legacy users.token
-// column is checked for backward compatibility. Session cookies are the
+// column is checked for backward compatibility. The X-Auth-Token header is
+// then consulted as a localStorage/IndexedDB fallback for iOS PWA contexts
+// where the session cookie gets evicted. Session cookies are the final
 // fallback for browser clients.
 //
 // When authentication succeeds via an API key, both the user and the API key
@@ -53,6 +55,29 @@ func Auth(users repository.UserRepo, sessions repository.SessionRepo, apiKeys re
 					user, err := users.GetByToken(r.Context(), token)
 					if err == nil && user != nil {
 						ctx := api.ContextWithUser(r.Context(), user)
+						next.ServeHTTP(w, r.WithContext(ctx))
+						return
+					}
+				}
+			}
+
+			// X-Auth-Token header: localStorage/IndexedDB-backed fallback for
+			// iOS WebKit and Firefox-iOS PWA contexts that evict the session
+			// cookie. The header value is a session ID, so the lookup is
+			// identical to the cookie path below.
+			if hdrToken := r.Header.Get("X-Auth-Token"); hdrToken != "" {
+				if session, err := sessions.GetByID(r.Context(), hdrToken); err == nil && session != nil {
+					if user, err := users.GetByID(r.Context(), session.UserID); err == nil && user != nil {
+						ctx := api.ContextWithUser(r.Context(), user)
+						if session.ApiKeyID != nil && apiKeys != nil {
+							if apiKey, err := apiKeys.GetByID(r.Context(), *session.ApiKeyID); err == nil && apiKey != nil {
+								if apiKey.IsExpired() {
+									api.RespondError(w, http.StatusUnauthorized, "API key has expired")
+									return
+								}
+								ctx = api.ContextWithApiKey(ctx, apiKey)
+							}
+						}
 						next.ServeHTTP(w, r.WithContext(ctx))
 						return
 					}

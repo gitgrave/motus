@@ -1,7 +1,7 @@
 // Motus Service Worker
 // Provides offline caching, API response caching with TTL, and background sync.
 
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const STATIC_CACHE = `motus-static-${CACHE_VERSION}`;
 const API_CACHE = `motus-api-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `motus-runtime-${CACHE_VERSION}`;
@@ -90,9 +90,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // API requests: network-first with cache fallback and TTL
+  // Skip /api/* entirely. iOS WebKit (and Firefox-iOS, which uses WebKit)
+  // strips the Cookie header from SW-intercepted fetches in PWA contexts,
+  // breaking session-cookie auth. Letting the browser fetch /api/* natively
+  // keeps cookies attached. Short-term offline caching of read endpoints
+  // can be reintroduced via HTTP Cache-Control headers if needed.
   if (url.pathname.startsWith("/api/")) {
-    event.respondWith(handleApiRequest(request, url));
     return;
   }
 

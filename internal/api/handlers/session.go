@@ -133,6 +133,7 @@ func (h *SessionHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Value:    session.ID,
 		Path:     "/",
 		Expires:  session.ExpiresAt,
+		MaxAge:   int(time.Until(session.ExpiresAt).Seconds()),
 		HttpOnly: true,
 		Secure:   isSecureEnvironment(),
 		SameSite: http.SameSiteLaxMode,
@@ -145,7 +146,20 @@ func (h *SessionHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user.PopulateTraccarFields()
-	api.RespondJSON(w, http.StatusOK, user)
+
+	// For "remember me" logins we additionally return the session ID in the
+	// response body. iOS WebKit / Firefox-iOS PWA contexts evict the
+	// session cookie across app restarts, so the frontend stores this token
+	// in localStorage and replays it via the X-Auth-Token header when the
+	// cookie is gone.
+	resp := struct {
+		*model.User
+		AuthToken string `json:"authToken,omitempty"`
+	}{User: user}
+	if remember {
+		resp.AuthToken = session.ID
+	}
+	api.RespondJSON(w, http.StatusOK, resp)
 }
 
 // GetCurrentSession returns the currently authenticated user.
@@ -207,14 +221,21 @@ func (h *SessionHandler) GetCurrentSession(w http.ResponseWriter, r *http.Reques
 
 	// This route is public (no auth middleware) to support the ?token= path
 	// above, so api.UserFromContext will always be nil. Instead, manually
-	// validate the session cookie to restore the authenticated user.
-	cookie, err := r.Cookie("session_id")
-	if err != nil || cookie.Value == "" {
+	// validate either the session cookie or the X-Auth-Token header
+	// (localStorage/IDB-backed fallback for iOS PWA contexts where the
+	// cookie gets evicted).
+	var sessionID string
+	if cookie, err := r.Cookie("session_id"); err == nil && cookie.Value != "" {
+		sessionID = cookie.Value
+	} else if hdr := r.Header.Get("X-Auth-Token"); hdr != "" {
+		sessionID = hdr
+	}
+	if sessionID == "" {
 		api.RespondError(w, http.StatusUnauthorized, "not authenticated")
 		return
 	}
 
-	session, err := h.sessions.GetByID(r.Context(), cookie.Value)
+	session, err := h.sessions.GetByID(r.Context(), sessionID)
 	if err != nil || session == nil {
 		api.RespondError(w, http.StatusUnauthorized, "not authenticated")
 		return

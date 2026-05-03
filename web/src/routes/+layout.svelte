@@ -7,6 +7,7 @@
 	import { wsManager } from '$lib/stores/websocket';
 	import { pwa } from '$lib/stores/pwa';
 	import { api, APIError } from '$lib/api/client';
+	import { hydrateAuthToken, setAuthToken } from '$lib/auth-token-store';
 	import PullToRefresh from '$lib/components/PullToRefresh.svelte';
 	import {
 		initNativeTokenHandler,
@@ -35,6 +36,11 @@
 	onMount(async () => {
 		theme.initialize();
 		pwa.initialize();
+
+		// Re-hydrate the auth token from IndexedDB before any authenticated
+		// API call fires. iOS PWA cold starts purge localStorage, but
+		// IndexedDB survives, so this restores the X-Auth-Token fallback.
+		await hydrateAuthToken();
 
 		// Check if running in Traccar Manager native app
 		isNative = isNativeEnvironment();
@@ -115,6 +121,9 @@
 		wsManager.disconnect();
 		currentUser.set(null);
 		isAuthenticated.set(false);
+		// Clear the auth token (localStorage + IndexedDB) so the next
+		// load doesn't silently re-authenticate via X-Auth-Token.
+		await setAuthToken(null);
 		goto('/login');
 	}
 

@@ -360,10 +360,6 @@ func Run() {
 	geofenceEventService.SetCalendarRepo(calendarRepo)
 	geofenceEventService.SetLogger(svcLogger)
 
-	// Overspeed detection service.
-	overspeedService := services.NewOverspeedService(eventRepo, hub, notificationService)
-	overspeedService.SetLogger(svcLogger)
-
 	// Motion detection service.
 	motionService := services.NewMotionService(positionRepo, eventRepo, hub, notificationService)
 	motionService.SetLogger(svcLogger)
@@ -410,7 +406,6 @@ func Run() {
 
 	// GPS protocol position handler (stores positions and broadcasts via WebSocket).
 	gpsHandler := protocol.NewPositionHandler(positionRepo, deviceRepo, hub, geofenceEventService)
-	gpsHandler.SetOverspeedChecker(overspeedService)
 	gpsHandler.SetMotionChecker(motionService)
 	gpsHandler.SetIgnitionChecker(ignitionService)
 	gpsHandler.SetAlarmChecker(alarmService)

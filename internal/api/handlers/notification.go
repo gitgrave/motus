@@ -53,7 +53,6 @@ var validEventTypes = map[string]bool{
 	"geofenceExit":  true,
 	"deviceOnline":  true,
 	"deviceOffline": true,
-	"overspeed":     true,
 	"motion":        true,
 	"deviceIdle":    true,
 	"ignitionOn":    true,

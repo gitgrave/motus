@@ -30,7 +30,6 @@ export const EVENT_TYPES = [
   { value: "geofenceExit", label: "Geofence Exit" },
   { value: "deviceOnline", label: "Device Online" },
   { value: "deviceOffline", label: "Device Offline" },
-  { value: "overspeed", label: "Overspeed" },
   { value: "motion", label: "Motion Started" },
   { value: "deviceIdle", label: "Device Idle" },
   { value: "ignitionOn", label: "Ignition On" },

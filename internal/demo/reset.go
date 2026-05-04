@@ -331,7 +331,7 @@ func Reset(ctx context.Context, pool *pgxpool.Pool, accounts []DemoAccount, devi
 			INSERT INTO notification_rules (user_id, name, event_types, channel, config, template, enabled)
 			VALUES
 				($1, 'Demo All Events',
-				 '{geofenceEnter,geofenceExit,deviceOnline,deviceOffline,overspeed,motion,deviceIdle,ignitionOn,ignitionOff,alarm}',
+				 '{geofenceEnter,geofenceExit,deviceOnline,deviceOffline,motion,deviceIdle,ignitionOn,ignitionOff,alarm}',
 				 'webhook', $2::jsonb, $3, true)
 		`, demoUserID,
 			`{"webhookUrl":"https://ntfy.sh/motus-gps","headers":{"Title":"Motus GPS Alert"}}`,

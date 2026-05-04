@@ -1,7 +1,8 @@
 // Motus Service Worker
 // Provides offline caching, API response caching with TTL, and background sync.
 
-const CACHE_VERSION = "v5";
+// Replaced by the Go server with internal/version.Version on each request.
+const CACHE_VERSION = "__CACHE_VERSION__";
 const STATIC_CACHE = `motus-static-${CACHE_VERSION}`;
 const API_CACHE = `motus-api-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `motus-runtime-${CACHE_VERSION}`;

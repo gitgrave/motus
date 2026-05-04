@@ -154,6 +154,69 @@ func (r *PositionRepository) GetByDeviceAndTimeRange(
 	return positions, nil
 }
 
+// GetAllByTimeRange returns positions across every device in the system,
+// filtered to the given time range. Used by the admin "show all" path on
+// the dashboard's "positions today" tile.
+func (r *PositionRepository) GetAllByTimeRange(
+	ctx context.Context, from, to time.Time, limit int,
+) ([]*model.Position, error) {
+	if limit < 0 {
+		limit = 0
+	}
+
+	const baseQuery = `SELECT ` + positionColumns + `
+		 FROM positions
+		 WHERE timestamp >= $1 AND timestamp <= $2
+		 ORDER BY timestamp ASC`
+
+	var rows pgx.Rows
+	var err error
+	if limit > 0 {
+		rows, err = r.pool.Query(ctx, baseQuery+` LIMIT $3`, from, to, limit)
+	} else {
+		rows, err = r.pool.Query(ctx, baseQuery, from, to)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get positions by time range (all): %w", err)
+	}
+	defer rows.Close()
+
+	return scanPositions(rows)
+}
+
+// GetByUserAndTimeRange returns positions for every device the user has
+// access to, filtered to the given time range. Used by the dashboard's
+// "positions today" tile and other cross-device aggregates.
+func (r *PositionRepository) GetByUserAndTimeRange(
+	ctx context.Context, userID int64, from, to time.Time, limit int,
+) ([]*model.Position, error) {
+	if limit < 0 {
+		limit = 0
+	}
+
+	const baseQuery = `SELECT p.id, p.device_id, p.protocol, p.server_time, p.device_time,
+		 p.timestamp, p.valid, p.latitude, p.longitude, p.altitude, p.speed, p.course,
+		 p.address, p.accuracy, p.network, p.geofence_ids, p.outdated, p.attributes
+		 FROM positions p
+		 JOIN user_devices ud ON ud.device_id = p.device_id
+		 WHERE ud.user_id = $1 AND p.timestamp >= $2 AND p.timestamp <= $3
+		 ORDER BY p.timestamp ASC`
+
+	var rows pgx.Rows
+	var err error
+	if limit > 0 {
+		rows, err = r.pool.Query(ctx, baseQuery+` LIMIT $4`, userID, from, to, limit)
+	} else {
+		rows, err = r.pool.Query(ctx, baseQuery, userID, from, to)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get positions by user time range: %w", err)
+	}
+	defer rows.Close()
+
+	return scanPositions(rows)
+}
+
 // GetPreviousByDevice returns the position immediately before the given timestamp
 // for a device. Returns nil, nil if no previous position exists.
 func (r *PositionRepository) GetPreviousByDevice(ctx context.Context, deviceID int64, beforeTime time.Time) (*model.Position, error) {

@@ -120,29 +120,29 @@ func TestEventRepository_GetRecentByDeviceAndType(t *testing.T) {
 	now := time.Now().UTC()
 
 	// Create events of different types.
-	_ = eventRepo.Create(ctx, &model.Event{DeviceID: device.ID, Type: "overspeed", Timestamp: now.Add(-2 * time.Minute)})
+	_ = eventRepo.Create(ctx, &model.Event{DeviceID: device.ID, Type: "deviceIdle", Timestamp: now.Add(-2 * time.Minute)})
 	_ = eventRepo.Create(ctx, &model.Event{DeviceID: device.ID, Type: "motion", Timestamp: now.Add(-1 * time.Minute)})
-	_ = eventRepo.Create(ctx, &model.Event{DeviceID: device.ID, Type: "overspeed", Timestamp: now})
+	_ = eventRepo.Create(ctx, &model.Event{DeviceID: device.ID, Type: "deviceIdle", Timestamp: now})
 
-	// Should only return overspeed events, limited to 1.
-	events, err := eventRepo.GetRecentByDeviceAndType(ctx, device.ID, "overspeed", 1)
+	// Should only return deviceIdle events, limited to 1.
+	events, err := eventRepo.GetRecentByDeviceAndType(ctx, device.ID, "deviceIdle", 1)
 	if err != nil {
 		t.Fatalf("GetRecentByDeviceAndType failed: %v", err)
 	}
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	if events[0].Type != "overspeed" {
-		t.Errorf("expected type 'overspeed', got %q", events[0].Type)
+	if events[0].Type != "deviceIdle" {
+		t.Errorf("expected type 'deviceIdle', got %q", events[0].Type)
 	}
 
-	// All overspeed events.
-	events, err = eventRepo.GetRecentByDeviceAndType(ctx, device.ID, "overspeed", 10)
+	// All deviceIdle events.
+	events, err = eventRepo.GetRecentByDeviceAndType(ctx, device.ID, "deviceIdle", 10)
 	if err != nil {
 		t.Fatalf("GetRecentByDeviceAndType failed: %v", err)
 	}
 	if len(events) != 2 {
-		t.Errorf("expected 2 overspeed events, got %d", len(events))
+		t.Errorf("expected 2 deviceIdle events, got %d", len(events))
 	}
 
 	// No motion events expected beyond the one we created.
@@ -154,8 +154,8 @@ func TestEventRepository_GetRecentByDeviceAndType(t *testing.T) {
 		t.Errorf("expected 1 motion event, got %d", len(events))
 	}
 
-	// Non-existent type returns empty.
-	events, err = eventRepo.GetRecentByDeviceAndType(ctx, device.ID, "deviceIdle", 10)
+	// Non-existent (in this test) type returns empty.
+	events, err = eventRepo.GetRecentByDeviceAndType(ctx, device.ID, "geofenceEnter", 10)
 	if err != nil {
 		t.Fatalf("GetRecentByDeviceAndType failed: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestEventRepository_GetByFilters(t *testing.T) {
 	to := now.Add(time.Hour)
 
 	_ = eventRepo.Create(ctx, &model.Event{DeviceID: d1.ID, Type: "geofenceEnter", Timestamp: now.Add(-30 * time.Minute)})
-	_ = eventRepo.Create(ctx, &model.Event{DeviceID: d1.ID, Type: "overspeed", Timestamp: now})
+	_ = eventRepo.Create(ctx, &model.Event{DeviceID: d1.ID, Type: "deviceIdle", Timestamp: now})
 	_ = eventRepo.Create(ctx, &model.Event{DeviceID: d2.ID, Type: "geofenceEnter", Timestamp: now.Add(-10 * time.Minute)})
 
 	// No filters — all 3 events for this user.

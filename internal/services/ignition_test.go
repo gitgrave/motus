@@ -70,6 +70,12 @@ func (r *ignitionMockPositionRepo) UpdateGeofenceIDs(_ context.Context, _ int64,
 func (r *ignitionMockPositionRepo) GetByDeviceAndTimeRange(_ context.Context, _ int64, _, _ time.Time, _ int) ([]*model.Position, error) {
 	return nil, nil
 }
+func (r *ignitionMockPositionRepo) GetByUserAndTimeRange(_ context.Context, _ int64, _, _ time.Time, _ int) ([]*model.Position, error) {
+	return nil, nil
+}
+func (r *ignitionMockPositionRepo) GetAllByTimeRange(_ context.Context, _, _ time.Time, _ int) ([]*model.Position, error) {
+	return nil, nil
+}
 func (r *ignitionMockPositionRepo) UpdateAddress(_ context.Context, _ int64, _ string) error {
 	return nil
 }

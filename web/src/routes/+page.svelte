@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { api, fetchDevices } from '$lib/api/client';
+	import { getSettings } from '$lib/stores/settings';
 	import { currentUser } from '$lib/stores/auth';
 	import { refreshHandler } from '$lib/stores/refresh';
 	import type { Position } from '$lib/types/api';
@@ -45,17 +46,24 @@
 
 	async function loadDashboard() {
 		const isAdmin = ($currentUser as Record<string, unknown> | null)?.administrator === true;
+		const showAll = isAdmin && getSettings().showAllDevices;
 		const [deviceList, latestPositions, todayPositions] = await Promise.all([
 			fetchDevices(isAdmin) as Promise<Device[]>,
-			api.getPositions().catch(() => [] as Position[]),
+			(showAll ? api.getAllPositions() : api.getPositions()).catch(
+				() => [] as Position[]
+			) as Promise<Position[]>,
 			(async () => {
 				const todayStart = new Date();
 				todayStart.setHours(0, 0, 0, 0);
-				return api.getPositions({
+				const params = {
 					from: todayStart.toISOString(),
 					to: new Date().toISOString(),
 					limit: 10000
-				}).catch(() => [] as Position[]);
+				};
+				return (showAll
+					? api.getAllPositions(params)
+					: api.getPositions(params)
+				).catch(() => [] as Position[]) as Promise<Position[]>;
 			})()
 		]);
 

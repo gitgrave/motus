@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"io/fs"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -384,6 +386,17 @@ func NewRouter(h Handlers, authMiddleware, adminMiddleware func(http.Handler) ht
 
 				cleanPath := strings.TrimPrefix(r.URL.Path, "/")
 
+				// Service worker: substitute the build-time version into the
+				// CACHE_VERSION placeholder so each release gets its own cache
+				// namespace and old caches are evicted automatically.
+				if cleanPath == "sw.js" {
+					if body, ok := versionedSW(webFS); ok {
+						w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+						w.Write(body) //nolint:errcheck
+						return
+					}
+				}
+
 				// Try exact path first (static assets like .js, .css, .png).
 				if cleanPath != "" {
 					if _, err := fs.Stat(webFS, cleanPath); err == nil {
@@ -420,4 +433,26 @@ func NewRouter(h Handlers, authMiddleware, adminMiddleware func(http.Handler) ht
 	}
 
 	return r
+}
+
+// swCache holds the substituted service-worker bytes after the first request.
+// Computing the substitution once is fine because version.Version is set at
+// build time and doesn't change for the lifetime of the process.
+var (
+	swOnce  sync.Once
+	swBytes []byte
+)
+
+// versionedSW returns the embedded sw.js with the __CACHE_VERSION__ placeholder
+// replaced by version.Version. Returns ok=false when the file isn't present
+// (e.g. dev builds without a frontend build).
+func versionedSW(webFS fs.FS) ([]byte, bool) {
+	swOnce.Do(func() {
+		raw, err := fs.ReadFile(webFS, "sw.js")
+		if err != nil {
+			return
+		}
+		swBytes = bytes.ReplaceAll(raw, []byte("__CACHE_VERSION__"), []byte(version.Version))
+	})
+	return swBytes, len(swBytes) > 0
 }

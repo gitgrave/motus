@@ -2,6 +2,20 @@ import { test, expect } from '../fixtures/auth-fixture';
 
 test.describe('Form Validation', () => {
   test.describe('Login Form', () => {
+    // The default Playwright project loads a stored authenticated session,
+    // and the login page auto-redirects authenticated users to /. Drop the
+    // session for these tests so the login form actually renders.
+    test.beforeEach(async ({ context, page }) => {
+      await context.clearCookies();
+      await page.goto('/login');
+      await page.evaluate(() => {
+        localStorage.clear();
+        if (typeof indexedDB !== 'undefined') {
+          indexedDB.deleteDatabase('motus_auth');
+        }
+      });
+    });
+
     test('should have required attribute on email input', async ({ page }) => {
       await page.goto('/login');
       await page.waitForSelector('input[name="email"]');

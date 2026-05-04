@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/tamcore/motus/internal/model"
 	"github.com/tamcore/motus/internal/storage/repository"
@@ -11,6 +12,12 @@ import (
 
 // MotionThreshold is the minimum speed in km/h to consider a device in motion.
 const MotionThreshold = 5.0
+
+// MotionDedupWindow suppresses repeat motion events when a device's reported
+// speed oscillates around MotionThreshold during a single trip. Without this,
+// a vehicle driving at ~5 km/h emits a motion event for every threshold
+// crossing, flooding the notification webhook.
+const MotionDedupWindow = 5 * time.Minute
 
 // MotionService detects when a device transitions from stationary to moving
 // and creates motion events.
@@ -66,6 +73,14 @@ func (s *MotionService) CheckMotion(ctx context.Context, position *model.Positio
 
 	// Motion started: previous speed was below threshold, current speed meets or exceeds it.
 	if prevSpeed < MotionThreshold && currSpeed >= MotionThreshold {
+		// Suppress duplicates from speed oscillation around the threshold:
+		// only fire a new motion event if no motion event has been recorded
+		// for this device within MotionDedupWindow.
+		recent, err := s.eventRepo.GetRecentByDeviceAndType(ctx, position.DeviceID, "motion", 1)
+		if err == nil && len(recent) > 0 && position.Timestamp.Sub(recent[0].Timestamp) < MotionDedupWindow {
+			return nil
+		}
+
 		event := &model.Event{
 			DeviceID:   position.DeviceID,
 			Type:       "motion",

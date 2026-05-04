@@ -157,15 +157,17 @@ func (s *IdleService) CheckIdle(ctx context.Context) error {
 		}
 
 		// Deduplicate: only emit a new deviceIdle event if the device has sent
-		// a fresh position since the last idle event. Time-based dedup alone
-		// would re-emit every IdleThreshold for a long-parked device, spamming
-		// webhook notifications for hours on end (a 12h park = 24 events with
-		// the old logic).
+		// a fresh position since the last idle event. Compare position IDs
+		// rather than timestamps because a CheckIdle run creates the event
+		// with Timestamp=time.Now() while the latest stored position keeps
+		// its (older) GPS fix time — a timestamp comparison would block all
+		// subsequent emissions until a position with a future timestamp
+		// arrives.
 		recentEvents, err := s.eventRepo.GetRecentByDeviceAndType(ctx, device.ID, "deviceIdle", 1)
 		if err == nil && len(recentEvents) > 0 {
 			lastIdleEvent := recentEvents[0]
-			if !lastIdleEvent.Timestamp.Before(position.Timestamp) {
-				continue // Device has not moved since the last idle event.
+			if lastIdleEvent.PositionID != nil && *lastIdleEvent.PositionID == position.ID {
+				continue // Same latest position as last idle event — no new movement.
 			}
 		}
 

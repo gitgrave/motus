@@ -157,6 +157,12 @@ func (m *auditMockPositionRepo) GetLatestByUser(_ context.Context, _ int64) ([]*
 func (m *auditMockPositionRepo) GetByDeviceAndTimeRange(_ context.Context, _ int64, _, _ time.Time, _ int) ([]*model.Position, error) {
 	return nil, nil
 }
+func (m *auditMockPositionRepo) GetByUserAndTimeRange(_ context.Context, _ int64, _, _ time.Time, _ int) ([]*model.Position, error) {
+	return nil, nil
+}
+func (m *auditMockPositionRepo) GetAllByTimeRange(_ context.Context, _, _ time.Time, _ int) ([]*model.Position, error) {
+	return nil, nil
+}
 func (m *auditMockPositionRepo) GetPreviousByDevice(_ context.Context, _ int64, _ time.Time) (*model.Position, error) {
 	return nil, errors.New("not found")
 }

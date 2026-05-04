@@ -72,6 +72,8 @@ type PositionRepo interface {
 	GetLatestByUser(ctx context.Context, userID int64) ([]*model.Position, error)
 	GetLatestAll(ctx context.Context) ([]*model.Position, error)
 	GetByDeviceAndTimeRange(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]*model.Position, error)
+	GetByUserAndTimeRange(ctx context.Context, userID int64, from, to time.Time, limit int) ([]*model.Position, error)
+	GetAllByTimeRange(ctx context.Context, from, to time.Time, limit int) ([]*model.Position, error)
 	GetPreviousByDevice(ctx context.Context, deviceID int64, beforeTime time.Time) (*model.Position, error)
 	GetByID(ctx context.Context, id int64) (*model.Position, error)
 	GetByIDs(ctx context.Context, ids []int64) ([]*model.Position, error)

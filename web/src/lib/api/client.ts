@@ -331,13 +331,24 @@ export const api = {
   /** List all notification rules in the system (admin only). */
   getAllNotifications: () => request<NotificationRule[]>("/admin/notifications"),
 
-  /** Get latest positions for all devices in the system (admin only). */
-  getAllPositions: () =>
-    request<Position[]>("/admin/positions").then((positions) =>
+  /**
+   * Query positions across every device (admin only).
+   * Without params: latest position per device.
+   * With from/to/limit: positions across all devices in the window.
+   */
+  getAllPositions: (params?: { from?: string; to?: string; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.from) query.set("from", params.from);
+    if (params?.to) query.set("to", params.to);
+    if (params?.limit) query.set("limit", String(params.limit));
+    const qs = query.toString();
+    const path = qs ? `/admin/positions?${qs}` : "/admin/positions";
+    return request<Position[]>(path).then((positions) =>
       positions.map((pos) =>
         pos.speed != null ? { ...pos, speed: pos.speed * 1.852 } : pos,
       ),
-    ),
+    );
+  },
 
   /** Get devices assigned to a user (admin only). */
   getUserDevices: (id: number) => request<Device[]>(`/users/${id}/devices`),

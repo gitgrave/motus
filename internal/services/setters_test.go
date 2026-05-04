@@ -53,21 +53,6 @@ func TestSetLogger_MotionService(t *testing.T) {
 	}
 }
 
-// TestSetLogger_OverspeedService verifies SetLogger behaviour.
-func TestSetLogger_OverspeedService(t *testing.T) {
-	s := &OverspeedService{logger: slog.Default()}
-	initial := s.logger
-	s.SetLogger(nil)
-	if s.logger != initial {
-		t.Error("SetLogger(nil) should not change the logger")
-	}
-	custom := slog.New(slog.Default().Handler())
-	s.SetLogger(custom)
-	if s.logger != custom {
-		t.Error("SetLogger(custom) should replace the logger")
-	}
-}
-
 // TestSetLogger_GeofenceEventService verifies SetLogger behaviour.
 func TestSetLogger_GeofenceEventService(t *testing.T) {
 	s := &GeofenceEventService{logger: slog.Default()}

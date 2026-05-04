@@ -14,17 +14,6 @@ import (
 	"github.com/tamcore/motus/internal/websocket"
 )
 
-// mockOverspeedChecker is a test implementation of OverspeedChecker.
-type mockOverspeedChecker struct {
-	called bool
-	err    error
-}
-
-func (m *mockOverspeedChecker) CheckOverspeed(_ context.Context, _ *model.Position, _ *model.Device) error {
-	m.called = true
-	return m.err
-}
-
 // mockMotionChecker is a test implementation of MotionChecker.
 type mockMotionChecker struct {
 	called bool
@@ -34,15 +23,6 @@ type mockMotionChecker struct {
 func (m *mockMotionChecker) CheckMotion(_ context.Context, _ *model.Position) error {
 	m.called = true
 	return m.err
-}
-
-func TestPositionHandler_SetOverspeedChecker(t *testing.T) {
-	h := NewPositionHandler(nil, nil, nil, nil)
-	checker := &mockOverspeedChecker{}
-	h.SetOverspeedChecker(checker)
-	if h.overspeed != checker {
-		t.Error("expected overspeed checker to be set")
-	}
 }
 
 func TestPositionHandler_SetMotionChecker(t *testing.T) {
@@ -76,11 +56,9 @@ func TestPositionHandler_HandlePosition_WithCheckers(t *testing.T) {
 	}
 
 	geoChecker := &mockGeofenceChecker{}
-	overspeedChecker := &mockOverspeedChecker{}
 	motionChecker := &mockMotionChecker{}
 
 	handler := NewPositionHandler(posRepo, deviceRepo, hub, geoChecker)
-	handler.SetOverspeedChecker(overspeedChecker)
 	handler.SetMotionChecker(motionChecker)
 
 	speed := 120.0
@@ -100,9 +78,6 @@ func TestPositionHandler_HandlePosition_WithCheckers(t *testing.T) {
 
 	if !geoChecker.called {
 		t.Error("expected geofence checker to be called")
-	}
-	if !overspeedChecker.called {
-		t.Error("expected overspeed checker to be called")
 	}
 	if !motionChecker.called {
 		t.Error("expected motion checker to be called")
@@ -129,11 +104,9 @@ func TestPositionHandler_HandlePosition_CheckerErrors(t *testing.T) {
 
 	// All checkers return errors.
 	geoChecker := &mockGeofenceChecker{}
-	overspeedChecker := &mockOverspeedChecker{err: errors.New("overspeed check failed")}
 	motionChecker := &mockMotionChecker{err: errors.New("motion check failed")}
 
 	handler := NewPositionHandler(posRepo, deviceRepo, hub, geoChecker)
-	handler.SetOverspeedChecker(overspeedChecker)
 	handler.SetMotionChecker(motionChecker)
 
 	pos := &model.Position{
@@ -149,9 +122,6 @@ func TestPositionHandler_HandlePosition_CheckerErrors(t *testing.T) {
 	}
 
 	// Checkers were still called.
-	if !overspeedChecker.called {
-		t.Error("expected overspeed checker to be called")
-	}
 	if !motionChecker.called {
 		t.Error("expected motion checker to be called")
 	}

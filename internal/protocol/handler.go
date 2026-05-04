@@ -22,11 +22,6 @@ type GeofenceChecker interface {
 	CheckGeofences(ctx context.Context, position *model.Position) error
 }
 
-// OverspeedChecker is the interface for detecting overspeed events.
-type OverspeedChecker interface {
-	CheckOverspeed(ctx context.Context, position *model.Position, device *model.Device) error
-}
-
 // MotionChecker is the interface for detecting motion start events.
 type MotionChecker interface {
 	CheckMotion(ctx context.Context, position *model.Position) error
@@ -61,7 +56,6 @@ type PositionHandler struct {
 	devices        repository.DeviceRepo
 	hub            *websocket.Hub
 	geofenceEvents GeofenceChecker
-	overspeed      OverspeedChecker
 	motion         MotionChecker
 	ignition       IgnitionChecker
 	alarm          AlarmChecker
@@ -84,11 +78,6 @@ func NewPositionHandler(
 		geofenceEvents: geofenceEvents,
 		logger:         slog.Default(),
 	}
-}
-
-// SetOverspeedChecker sets the overspeed detection service on the handler.
-func (h *PositionHandler) SetOverspeedChecker(checker OverspeedChecker) {
-	h.overspeed = checker
 }
 
 // SetMotionChecker sets the motion detection service on the handler.
@@ -215,16 +204,6 @@ func (h *PositionHandler) HandlePosition(ctx context.Context, pos *model.Positio
 
 	// Broadcast after geofence check so the position includes GeofenceIDs.
 	h.hub.BroadcastPosition(pos)
-
-	// Check overspeed events (requires device to be loaded).
-	if h.overspeed != nil && device != nil {
-		if err := h.overspeed.CheckOverspeed(ctx, pos, device); err != nil {
-			h.log().Error("overspeed check failed",
-				slog.Int64("deviceID", pos.DeviceID),
-				slog.Any("error", err),
-			)
-		}
-	}
 
 	// Check motion events.
 	if h.motion != nil {

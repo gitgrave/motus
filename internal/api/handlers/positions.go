@@ -54,8 +54,44 @@ func (h *PositionHandler) GetPositions(w http.ResponseWriter, r *http.Request) {
 
 	deviceIDStr := query.Get("deviceId")
 
-	// Mode 2: No deviceId — return latest position for all user's devices.
+	// Mode 2: No deviceId.
+	//   - Without from/to: return latest position for each of the user's
+	//     devices (Traccar-compatible default).
+	//   - With from/to:    return positions for every user's device within
+	//     the time range. Used by the dashboard "positions today" tile.
 	if deviceIDStr == "" {
+		fromStr := query.Get("from")
+		toStr := query.Get("to")
+		if fromStr != "" || toStr != "" {
+			from := time.Now().Add(-24 * time.Hour)
+			to := time.Now()
+			if t, err := time.Parse(time.RFC3339, fromStr); err == nil {
+				from = t
+			}
+			if t, err := time.Parse(time.RFC3339, toStr); err == nil {
+				to = t
+			}
+			limit := 0
+			if v := query.Get("limit"); v != "" {
+				if n, err := strconv.Atoi(v); err == nil && n > 0 {
+					limit = n
+				}
+			}
+			queryCtx, cancel := context.WithTimeout(r.Context(), positionQueryTimeout)
+			defer cancel()
+			positions, err := h.positions.GetByUserAndTimeRange(queryCtx, user.ID, from, to, limit)
+			if err != nil {
+				slog.Error("GetByUserAndTimeRange failed",
+					slog.Int64("userID", user.ID),
+					slog.Any("error", err),
+				)
+				api.RespondError(w, http.StatusInternalServerError, "failed to get positions")
+				return
+			}
+			api.RespondJSON(w, http.StatusOK, positionsInKnots(positions))
+			return
+		}
+
 		positions, err := h.positions.GetLatestByUser(r.Context(), user.ID)
 		if err != nil {
 			slog.Error("GetLatestByUser failed",
@@ -179,12 +215,46 @@ func (h *PositionHandler) getPositionsByIDs(w http.ResponseWriter, r *http.Reque
 	api.RespondJSON(w, http.StatusOK, positionsInKnots(allowed))
 }
 
-// AdminGetAllPositions returns the latest position for every device (admin only).
+// AdminGetAllPositions returns positions across every device (admin only).
+//   - Without from/to: latest position per device (Traccar-compatible default).
+//   - With from/to:    every position within the window. Used by the
+//     dashboard's admin "show all" path for the "positions today" tile.
+//
 // GET /api/admin/positions
 func (h *PositionHandler) AdminGetAllPositions(w http.ResponseWriter, r *http.Request) {
 	user := api.UserFromContext(r.Context())
 	if user == nil || !user.IsAdmin() {
 		api.RespondError(w, http.StatusForbidden, "admin access required")
+		return
+	}
+
+	query := r.URL.Query()
+	fromStr := query.Get("from")
+	toStr := query.Get("to")
+	if fromStr != "" || toStr != "" {
+		from := time.Now().Add(-24 * time.Hour)
+		to := time.Now()
+		if t, err := time.Parse(time.RFC3339, fromStr); err == nil {
+			from = t
+		}
+		if t, err := time.Parse(time.RFC3339, toStr); err == nil {
+			to = t
+		}
+		limit := 0
+		if v := query.Get("limit"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		queryCtx, cancel := context.WithTimeout(r.Context(), positionQueryTimeout)
+		defer cancel()
+		positions, err := h.positions.GetAllByTimeRange(queryCtx, from, to, limit)
+		if err != nil {
+			slog.Error("GetAllByTimeRange failed", slog.Any("error", err))
+			api.RespondError(w, http.StatusInternalServerError, "failed to get positions")
+			return
+		}
+		api.RespondJSON(w, http.StatusOK, positionsInKnots(positions))
 		return
 	}
 

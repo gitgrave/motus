@@ -38,6 +38,12 @@ func (r *mileageMockPositionRepo) UpdateGeofenceIDs(_ context.Context, _ int64, 
 func (r *mileageMockPositionRepo) GetByDeviceAndTimeRange(_ context.Context, _ int64, _, _ time.Time, _ int) ([]*model.Position, error) {
 	return nil, nil
 }
+func (r *mileageMockPositionRepo) GetByUserAndTimeRange(_ context.Context, _ int64, _, _ time.Time, _ int) ([]*model.Position, error) {
+	return nil, nil
+}
+func (r *mileageMockPositionRepo) GetAllByTimeRange(_ context.Context, _, _ time.Time, _ int) ([]*model.Position, error) {
+	return nil, nil
+}
 func (r *mileageMockPositionRepo) UpdateAddress(_ context.Context, _ int64, _ string) error {
 	return nil
 }

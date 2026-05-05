@@ -182,7 +182,7 @@ func (h *PositionHandler) HandlePosition(ctx context.Context, pos *model.Positio
 	// Check geofences before broadcasting so the position carries GeofenceIDs
 	// when it reaches Home Assistant (and other WebSocket clients). The check
 	// must happen after Create so the position has an ID for event records.
-	if h.geofenceEvents != nil {
+	if h.geofenceEvents != nil && !(pos.Latitude == 0 && pos.Longitude == 0) {
 		if err := h.geofenceEvents.CheckGeofences(ctx, pos); err != nil {
 			h.log().Error("geofence check failed",
 				slog.Int64("deviceID", pos.DeviceID),

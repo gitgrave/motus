@@ -247,6 +247,9 @@ func (m *auditMockGeofenceRepo) UserHasAccess(ctx context.Context, user *model.U
 func (m *auditMockGeofenceRepo) CheckContainment(_ context.Context, _ int64, _, _ float64) ([]int64, error) {
 	return nil, nil
 }
+func (m *auditMockGeofenceRepo) CheckContainmentForDevice(_ context.Context, _ int64, _, _ float64) ([]int64, error) {
+	return nil, nil
+}
 
 // auditMockCalendarRepo is a minimal test double for repository.CalendarRepo.
 type auditMockCalendarRepo struct {

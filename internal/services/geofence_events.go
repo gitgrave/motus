@@ -12,12 +12,16 @@ import (
 	"github.com/tamcore/motus/internal/websocket"
 )
 
+// GeofenceDedupWindow suppresses duplicate enter/exit events when a device's
+// position oscillates across a geofence boundary (GPS jitter or duplicate
+// timestamps). A real transition will not repeat within this window.
+const GeofenceDedupWindow = 2 * time.Minute
+
 // GeofenceEventService detects geofence enter/exit events by comparing
 // a new position against the previous one for the same device.
 type GeofenceEventService struct {
 	geofenceRepo        repository.GeofenceRepo
 	eventRepo           repository.EventRepo
-	deviceRepo          repository.DeviceRepo
 	positionRepo        repository.PositionRepo
 	calendarRepo        repository.CalendarRepo
 	hub                 *websocket.Hub
@@ -31,7 +35,6 @@ type GeofenceEventService struct {
 func NewGeofenceEventService(
 	geofenceRepo repository.GeofenceRepo,
 	eventRepo repository.EventRepo,
-	deviceRepo repository.DeviceRepo,
 	positionRepo repository.PositionRepo,
 	hub *websocket.Hub,
 	notificationService *NotificationService,
@@ -39,7 +42,6 @@ func NewGeofenceEventService(
 	return &GeofenceEventService{
 		geofenceRepo:        geofenceRepo,
 		eventRepo:           eventRepo,
-		deviceRepo:          deviceRepo,
 		positionRepo:        positionRepo,
 		hub:                 hub,
 		notificationService: notificationService,
@@ -64,66 +66,43 @@ func (s *GeofenceEventService) SetCalendarRepo(repo repository.CalendarRepo) {
 
 // CheckGeofences determines whether the given position triggers any
 // geofence enter or exit events. It compares the current position's
-// geofence containment against the previous position's containment.
+// geofence containment against the previous position's containment,
+// using a device-scoped union so that shared devices emit one event row
+// per physical transition regardless of how many users own the device.
 func (s *GeofenceEventService) CheckGeofences(ctx context.Context, position *model.Position) error {
-	// Find users associated with this device to scope geofence checks.
-	userIDs, err := s.deviceRepo.GetUserIDs(ctx, position.DeviceID)
-	if err != nil {
-		return err
-	}
-	if len(userIDs) == 0 {
-		return nil // Device has no users; no geofences to check.
-	}
-
-	// Check geofences for each user that owns this device.
-	for _, userID := range userIDs {
-		if err := s.checkForUser(ctx, position, userID); err != nil {
-			s.logger.Error("geofence check failed for user",
-				slog.Int64("userID", userID),
-				slog.Int64("deviceID", position.DeviceID),
-				slog.Any("error", err),
-			)
-		}
-	}
-
-	return nil
-}
-
-func (s *GeofenceEventService) checkForUser(ctx context.Context, position *model.Position, userID int64) error {
-	// Which geofences contain the current position?
-	currentGeofences, err := s.geofenceRepo.CheckContainment(ctx, userID, position.Latitude, position.Longitude)
+	currentGeofences, err := s.geofenceRepo.CheckContainmentForDevice(ctx, position.DeviceID, position.Latitude, position.Longitude)
 	if err != nil {
 		return err
 	}
 
-	// Update position with current geofence IDs for Home Assistant/Traccar compatibility.
-	// This allows clients to query which geofence(s) currently contain the device.
+	// Expose current geofence membership for Home Assistant / Traccar clients.
 	position.GeofenceIDs = currentGeofences
 
-	// Get the previous position to compare.
 	prevPosition, err := s.positionRepo.GetPreviousByDevice(ctx, position.DeviceID, position.Timestamp)
-	if err != nil || prevPosition == nil {
-		// First position for this device -- treat all current geofences as enter events.
+	if err != nil {
+		return err
+	}
+	if prevPosition == nil {
+		// Genuinely first position for this device: emit enters for all containing
+		// geofences. The dedup window in createEvent suppresses repeats caused by
+		// duplicate timestamps falling into this branch.
 		for _, gid := range currentGeofences {
 			s.createEvent(ctx, position, gid, "geofenceEnter")
 		}
 		return nil
 	}
 
-	// Which geofences contained the previous position?
-	prevGeofences, err := s.geofenceRepo.CheckContainment(ctx, userID, prevPosition.Latitude, prevPosition.Longitude)
+	prevGeofences, err := s.geofenceRepo.CheckContainmentForDevice(ctx, position.DeviceID, prevPosition.Latitude, prevPosition.Longitude)
 	if err != nil {
 		return err
 	}
 
-	// Detect enter events: in current but not in previous.
 	for _, gid := range currentGeofences {
 		if !containsID(prevGeofences, gid) {
 			s.createEvent(ctx, position, gid, "geofenceEnter")
 		}
 	}
 
-	// Detect exit events: in previous but not in current.
 	for _, gid := range prevGeofences {
 		if !containsID(currentGeofences, gid) {
 			s.createEvent(ctx, position, gid, "geofenceExit")
@@ -134,6 +113,18 @@ func (s *GeofenceEventService) checkForUser(ctx context.Context, position *model
 }
 
 func (s *GeofenceEventService) createEvent(ctx context.Context, position *model.Position, geofenceID int64, eventType string) {
+	// Suppress duplicate transitions within the dedup window (GPS jitter,
+	// duplicate timestamps, or repeated first-position enters).
+	recent, err := s.eventRepo.GetRecentByDeviceAndType(ctx, position.DeviceID, eventType, 10)
+	if err == nil {
+		for _, e := range recent {
+			if e.GeofenceID != nil && *e.GeofenceID == geofenceID &&
+				position.Timestamp.Sub(e.Timestamp) < GeofenceDedupWindow {
+				return
+			}
+		}
+	}
+
 	// Check if this geofence has a calendar restriction.
 	if !s.isGeofenceActiveNow(ctx, geofenceID) {
 		s.logger.Debug("geofence event suppressed by calendar",

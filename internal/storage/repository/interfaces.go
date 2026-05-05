@@ -95,6 +95,7 @@ type GeofenceRepo interface {
 	AssociateUser(ctx context.Context, userID, geofenceID int64) error
 	UserHasAccess(ctx context.Context, user *model.User, geofenceID int64) bool
 	CheckContainment(ctx context.Context, userID int64, lat, lon float64) ([]int64, error)
+	CheckContainmentForDevice(ctx context.Context, deviceID int64, lat, lon float64) ([]int64, error)
 }
 
 // EventRepo defines the operations on the events table used by handlers

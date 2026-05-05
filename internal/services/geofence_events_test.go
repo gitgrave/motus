@@ -31,7 +31,7 @@ func setupGeofenceService(t *testing.T) (
 	userRepo := repository.NewUserRepository(pool)
 	hub := websocket.NewHub(nil, nil, func(r *http.Request) int64 { return 0 })
 
-	svc := NewGeofenceEventService(geoRepo, eventRepo, deviceRepo, posRepo, hub, nil)
+	svc := NewGeofenceEventService(geoRepo, eventRepo, posRepo, hub, nil)
 	return svc, geoRepo, eventRepo, deviceRepo, posRepo, userRepo
 }
 

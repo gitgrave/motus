@@ -287,3 +287,32 @@ func (r *GeofenceRepository) CheckContainment(ctx context.Context, userID int64,
 	}
 	return ids, rows.Err()
 }
+
+// CheckContainmentForDevice returns the deduplicated IDs of geofences associated
+// with any user who owns the device that contain the specified point.
+// This collapses per-user containment into a single device-scoped query,
+// preventing duplicate event rows when a device is shared across multiple users.
+func (r *GeofenceRepository) CheckContainmentForDevice(ctx context.Context, deviceID int64, lat, lon float64) ([]int64, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT g.id
+		FROM geofences g
+		JOIN user_geofences ug ON g.id = ug.geofence_id
+		JOIN user_devices ud ON ud.user_id = ug.user_id
+		WHERE ud.device_id = $1
+		  AND ST_Contains(g.geometry, ST_SetSRID(ST_MakePoint($2, $3), 4326))
+	`, deviceID, lon, lat) // PostGIS: ST_MakePoint(lon, lat)
+	if err != nil {
+		return nil, fmt.Errorf("check geofence containment for device: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan geofence id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}

@@ -45,7 +45,7 @@ func setupCalendarGeofenceTest(t *testing.T) (
 	calRepo := repository.NewCalendarRepository(pool)
 	hub := websocket.NewHub(nil, nil, func(r *http.Request) int64 { return 0 })
 
-	svc := NewGeofenceEventService(geoRepo, eventRepo, deviceRepo, posRepo, hub, nil)
+	svc := NewGeofenceEventService(geoRepo, eventRepo, posRepo, hub, nil)
 	svc.SetCalendarRepo(calRepo)
 
 	return svc, geoRepo, eventRepo, deviceRepo, posRepo, userRepo, calRepo
@@ -267,7 +267,7 @@ func TestGeofenceCalendar_NoCalendarRepo_AlwaysTriggers(t *testing.T) {
 	hub := websocket.NewHub(nil, nil, func(r *http.Request) int64 { return 0 })
 
 	// Create service WITHOUT setting calendar repo.
-	svc := NewGeofenceEventService(geoRepo, eventRepo, deviceRepo, posRepo, hub, nil)
+	svc := NewGeofenceEventService(geoRepo, eventRepo, posRepo, hub, nil)
 
 	ctx := context.Background()
 

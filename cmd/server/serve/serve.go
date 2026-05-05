@@ -356,7 +356,7 @@ func Run() {
 	router := api.NewRouter(h, authMW, adminMW, hub, routerCfg)
 
 	// Geofence event detection service.
-	geofenceEventService := services.NewGeofenceEventService(geofenceRepo, eventRepo, deviceRepo, positionRepo, hub, notificationService)
+	geofenceEventService := services.NewGeofenceEventService(geofenceRepo, eventRepo, positionRepo, hub, notificationService)
 	geofenceEventService.SetCalendarRepo(calendarRepo)
 	geofenceEventService.SetLogger(svcLogger)
 

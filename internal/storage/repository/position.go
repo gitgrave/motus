@@ -228,6 +228,9 @@ func (r *PositionRepository) GetPreviousByDevice(ctx context.Context, deviceID i
 		 ORDER BY timestamp DESC
 		 LIMIT 1`, deviceID, beforeTime,
 	), p)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("get previous position: %w", err)
 	}

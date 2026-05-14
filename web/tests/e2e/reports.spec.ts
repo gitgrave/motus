@@ -30,7 +30,7 @@ test.describe('Reports Page', () => {
   });
 
   test('should show date range preset buttons', async () => {
-    await expect(reportsPage.presetButtons).toHaveCount(4);
+    await expect(reportsPage.presetButtons).toHaveCount(5);
   });
 
   test('should highlight Last 7d as default preset', async ({ authedPage }) => {
@@ -48,6 +48,20 @@ test.describe('Reports Page', () => {
     await reportsPage.selectPreset('Last 30d');
     const monthBtn = authedPage.locator('.preset-btn:has-text("Last 30d")');
     await expect(monthBtn).toHaveClass(/active/);
+  });
+
+  test('should switch date preset to All time', async ({ authedPage }) => {
+    await reportsPage.selectPreset('All time');
+    const allBtn = authedPage.locator('.preset-btn:has-text("All time")');
+    await expect(allBtn).toHaveClass(/active/);
+  });
+
+  test('should hide custom date inputs when All time is selected', async () => {
+    await reportsPage.selectPreset('Custom');
+    await expect(reportsPage.customFromInput).toBeVisible();
+
+    await reportsPage.selectPreset('All time');
+    await expect(reportsPage.customFromInput).toHaveCount(0);
   });
 
   test('should show custom date inputs when Custom is selected', async () => {

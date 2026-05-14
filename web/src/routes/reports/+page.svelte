@@ -40,7 +40,7 @@
 	let stopObserver: IntersectionObserver | undefined;
 	let selectedDeviceId = '';
 	let activeTab: 'trips' | 'stops' | 'summary' = 'trips';
-	let datePreset: 'day' | 'week' | 'month' | 'custom' = 'week';
+	let datePreset: 'day' | 'week' | 'month' | 'all' | 'custom' = 'week';
 	let customFrom = '';
 	let customTo = '';
 
@@ -130,6 +130,7 @@
 				to: customTo ? new Date(customTo + 'T23:59:59').toISOString() : to
 			};
 		}
+		if (datePreset === 'all') return { from: new Date('2020-01-01').toISOString(), to };
 		const from = new Date(now);
 		if (datePreset === 'day') from.setDate(from.getDate() - 1);
 		else if (datePreset === 'week') from.setDate(from.getDate() - 7);
@@ -320,6 +321,8 @@
 						on:click={() => datePreset = 'week'}>Last 7d</button>
 					<button class="preset-btn" class:active={datePreset === 'month'}
 						on:click={() => datePreset = 'month'}>Last 30d</button>
+					<button class="preset-btn" class:active={datePreset === 'all'}
+						on:click={() => datePreset = 'all'}>All time</button>
 					<button class="preset-btn" class:active={datePreset === 'custom'}
 						on:click={() => datePreset = 'custom'}>Custom</button>
 				</div>

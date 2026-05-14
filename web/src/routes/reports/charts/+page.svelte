@@ -36,7 +36,7 @@
 
 	// Configuration
 	let selectedDeviceId = '';
-	type PeriodPreset = 'today' | 'yesterday' | 'thisWeek' | 'prevWeek' | 'thisMonth' | 'prevMonth' | 'custom';
+	type PeriodPreset = 'today' | 'yesterday' | 'thisWeek' | 'prevWeek' | 'thisMonth' | 'prevMonth' | 'all' | 'custom';
 	let periodPreset: PeriodPreset = 'today';
 	let customFrom = '';
 	let customTo = '';
@@ -100,6 +100,8 @@
 				const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 				return { from: prevMonthStart.toISOString(), to: currentMonthStart.toISOString() };
 			}
+			case 'all':
+				return { from: new Date('2020-01-01').toISOString(), to: now.toISOString() };
 			case 'custom':
 				return {
 					from: customFrom ? new Date(customFrom).toISOString() : now.toISOString(),
@@ -317,6 +319,7 @@
 		{ value: 'prevWeek', label: 'Previous Week' },
 		{ value: 'thisMonth', label: 'This Month' },
 		{ value: 'prevMonth', label: 'Previous Month' },
+		{ value: 'all', label: 'All Time' },
 		{ value: 'custom', label: 'Custom' },
 	];
 </script>

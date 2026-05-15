@@ -181,6 +181,15 @@ func (m *auditMockPositionRepo) GetLatestAll(_ context.Context) ([]*model.Positi
 func (m *auditMockPositionRepo) GetLastMovingPosition(_ context.Context, _ int64, _ float64) (*model.Position, error) {
 	return nil, nil
 }
+func (m *auditMockPositionRepo) StreamByDeviceAndTimeRange(_ context.Context, _ int64, _, _ time.Time, _ int, _ func(*model.Position) error) error {
+	return nil
+}
+func (m *auditMockPositionRepo) StreamByUserAndTimeRange(_ context.Context, _ int64, _, _ time.Time, _ int, _ func(*model.Position) error) error {
+	return nil
+}
+func (m *auditMockPositionRepo) StreamAllByTimeRange(_ context.Context, _, _ time.Time, _ int, _ func(*model.Position) error) error {
+	return nil
+}
 
 // auditMockGeofenceRepo is a minimal test double for repository.GeofenceRepo.
 type auditMockGeofenceRepo struct {

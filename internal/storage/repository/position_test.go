@@ -529,6 +529,78 @@ func TestPositionRepository_UpdateAddress(t *testing.T) {
 	}
 }
 
+func TestPositionRepository_StreamByDeviceAndTimeRange_AllRows(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.CleanTables(t, pool)
+	posRepo := repository.NewPositionRepository(pool)
+	deviceRepo := repository.NewDeviceRepository(pool)
+	userRepo := repository.NewUserRepository(pool)
+	ctx := context.Background()
+
+	_, device := createTestDevice(t, pool, deviceRepo, userRepo)
+
+	now := time.Now().UTC()
+	for i := range 10 {
+		p := &model.Position{
+			DeviceID:  device.ID,
+			Latitude:  52.0 + float64(i)*0.01,
+			Longitude: 13.0,
+			Timestamp: now.Add(time.Duration(-10+i) * time.Minute),
+		}
+		if err := posRepo.Create(ctx, p); err != nil {
+			t.Fatalf("Create position %d failed: %v", i, err)
+		}
+	}
+
+	var count int
+	err := posRepo.StreamByDeviceAndTimeRange(ctx, device.ID, now.Add(-time.Hour), now.Add(time.Minute), 0, func(p *model.Position) error {
+		count++
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("StreamByDeviceAndTimeRange failed: %v", err)
+	}
+	if count != 10 {
+		t.Errorf("expected 10 positions streamed, got %d", count)
+	}
+}
+
+func TestPositionRepository_StreamByDeviceAndTimeRange_WithLimit(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.CleanTables(t, pool)
+	posRepo := repository.NewPositionRepository(pool)
+	deviceRepo := repository.NewDeviceRepository(pool)
+	userRepo := repository.NewUserRepository(pool)
+	ctx := context.Background()
+
+	_, device := createTestDevice(t, pool, deviceRepo, userRepo)
+
+	now := time.Now().UTC()
+	for i := range 10 {
+		p := &model.Position{
+			DeviceID:  device.ID,
+			Latitude:  52.0 + float64(i)*0.01,
+			Longitude: 13.0,
+			Timestamp: now.Add(time.Duration(-10+i) * time.Minute),
+		}
+		if err := posRepo.Create(ctx, p); err != nil {
+			t.Fatalf("Create position %d failed: %v", i, err)
+		}
+	}
+
+	var count int
+	err := posRepo.StreamByDeviceAndTimeRange(ctx, device.ID, now.Add(-time.Hour), now.Add(time.Minute), 3, func(p *model.Position) error {
+		count++
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("StreamByDeviceAndTimeRange failed: %v", err)
+	}
+	if count != 3 {
+		t.Errorf("expected 3 positions with limit=3, got %d", count)
+	}
+}
+
 func TestPositionRepository_GetLatestAll(t *testing.T) {
 	pool := testutil.SetupTestDB(t)
 	testutil.CleanTables(t, pool)

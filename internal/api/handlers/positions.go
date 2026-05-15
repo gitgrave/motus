@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -79,16 +81,12 @@ func (h *PositionHandler) GetPositions(w http.ResponseWriter, r *http.Request) {
 			}
 			queryCtx, cancel := context.WithTimeout(r.Context(), positionQueryTimeout)
 			defer cancel()
-			positions, err := h.positions.GetByUserAndTimeRange(queryCtx, user.ID, from, to, limit)
-			if err != nil {
-				slog.Error("GetByUserAndTimeRange failed",
-					slog.Int64("userID", user.ID),
-					slog.Any("error", err),
-				)
-				api.RespondError(w, http.StatusInternalServerError, "failed to get positions")
-				return
-			}
-			api.RespondJSON(w, http.StatusOK, positionsInKnots(positions))
+			writeStreamedPositions(w, func(emit func(*model.Position)) error {
+				return h.positions.StreamByUserAndTimeRange(queryCtx, user.ID, from, to, limit, func(p *model.Position) error {
+					emit(positionInKnots(p))
+					return nil
+				})
+			})
 			return
 		}
 
@@ -150,16 +148,35 @@ func (h *PositionHandler) GetPositions(w http.ResponseWriter, r *http.Request) {
 	queryCtx, cancel := context.WithTimeout(r.Context(), positionQueryTimeout)
 	defer cancel()
 
-	positions, err := h.positions.GetByDeviceAndTimeRange(queryCtx, deviceID, from, to, limit)
+	writeStreamedPositions(w, func(emit func(*model.Position)) error {
+		return h.positions.StreamByDeviceAndTimeRange(queryCtx, deviceID, from, to, limit, func(p *model.Position) error {
+			emit(positionInKnots(p))
+			return nil
+		})
+	})
+}
+
+// writeStreamedPositions writes a JSON array to w by invoking populate, which
+// must call emit once per position. The response header is committed before
+// populate runs; errors mid-stream are logged but cannot change the HTTP
+// status (already 200 OK at that point).
+func writeStreamedPositions(w http.ResponseWriter, populate func(emit func(*model.Position)) error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	enc := json.NewEncoder(w)
+	first := true
+	_, _ = io.WriteString(w, "[")
+	err := populate(func(p *model.Position) {
+		if !first {
+			_, _ = io.WriteString(w, ",")
+		}
+		first = false
+		_ = enc.Encode(p)
+	})
+	_, _ = io.WriteString(w, "]")
 	if err != nil {
-		slog.Error("GetByDeviceAndTimeRange failed",
-			slog.Int64("deviceID", deviceID),
-			slog.Any("error", err),
-		)
-		api.RespondError(w, http.StatusInternalServerError, "failed to get positions")
-		return
+		slog.Error("position stream failed mid-response", slog.Any("error", err))
 	}
-	api.RespondJSON(w, http.StatusOK, positionsInKnots(positions))
 }
 
 // kmhToKnots converts a speed value from km/h to knots.
@@ -248,13 +265,12 @@ func (h *PositionHandler) AdminGetAllPositions(w http.ResponseWriter, r *http.Re
 		}
 		queryCtx, cancel := context.WithTimeout(r.Context(), positionQueryTimeout)
 		defer cancel()
-		positions, err := h.positions.GetAllByTimeRange(queryCtx, from, to, limit)
-		if err != nil {
-			slog.Error("GetAllByTimeRange failed", slog.Any("error", err))
-			api.RespondError(w, http.StatusInternalServerError, "failed to get positions")
-			return
-		}
-		api.RespondJSON(w, http.StatusOK, positionsInKnots(positions))
+		writeStreamedPositions(w, func(emit func(*model.Position)) error {
+			return h.positions.StreamAllByTimeRange(queryCtx, from, to, limit, func(p *model.Position) error {
+				emit(positionInKnots(p))
+				return nil
+			})
+		})
 		return
 	}
 

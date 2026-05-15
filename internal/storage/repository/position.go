@@ -312,6 +312,118 @@ func (r *PositionRepository) GetLastMovingPosition(ctx context.Context, deviceID
 	return p, nil
 }
 
+// StreamByDeviceAndTimeRange calls fn for each position in the time range,
+// ordered by timestamp ascending. limit=0 streams all matching rows; a
+// positive limit stops after that many rows. Errors from fn abort the stream.
+func (r *PositionRepository) StreamByDeviceAndTimeRange(
+	ctx context.Context, deviceID int64, from, to time.Time, limit int,
+	fn func(*model.Position) error,
+) error {
+	if limit < 0 {
+		limit = 0
+	}
+	const baseQuery = `SELECT ` + positionColumns + `
+		 FROM positions
+		 WHERE device_id = $1 AND timestamp >= $2 AND timestamp <= $3
+		 ORDER BY timestamp ASC`
+	var rows pgx.Rows
+	var err error
+	if limit > 0 {
+		rows, err = r.pool.Query(ctx, baseQuery+` LIMIT $4`, deviceID, from, to, limit)
+	} else {
+		rows, err = r.pool.Query(ctx, baseQuery, deviceID, from, to)
+	}
+	if err != nil {
+		return fmt.Errorf("stream positions by device and time range: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		p := &model.Position{}
+		if err := scanPosition(rows, p); err != nil {
+			return fmt.Errorf("scan position: %w", err)
+		}
+		if err := fn(p); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
+// StreamByUserAndTimeRange calls fn for each position belonging to any device
+// owned by userID within the time range, ordered by timestamp ascending.
+func (r *PositionRepository) StreamByUserAndTimeRange(
+	ctx context.Context, userID int64, from, to time.Time, limit int,
+	fn func(*model.Position) error,
+) error {
+	if limit < 0 {
+		limit = 0
+	}
+	const baseQuery = `SELECT p.id, p.device_id, p.protocol, p.server_time, p.device_time,
+		 p.timestamp, p.valid, p.latitude, p.longitude, p.altitude, p.speed, p.course,
+		 p.address, p.accuracy, p.network, p.geofence_ids, p.outdated, p.attributes
+		 FROM positions p
+		 JOIN user_devices ud ON ud.device_id = p.device_id
+		 WHERE ud.user_id = $1 AND p.timestamp >= $2 AND p.timestamp <= $3
+		 ORDER BY p.timestamp ASC`
+	var rows pgx.Rows
+	var err error
+	if limit > 0 {
+		rows, err = r.pool.Query(ctx, baseQuery+` LIMIT $4`, userID, from, to, limit)
+	} else {
+		rows, err = r.pool.Query(ctx, baseQuery, userID, from, to)
+	}
+	if err != nil {
+		return fmt.Errorf("stream positions by user and time range: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		p := &model.Position{}
+		if err := scanPosition(rows, p); err != nil {
+			return fmt.Errorf("scan position: %w", err)
+		}
+		if err := fn(p); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
+// StreamAllByTimeRange calls fn for every position in the system within the
+// time range, ordered by timestamp ascending. Used by the admin path.
+func (r *PositionRepository) StreamAllByTimeRange(
+	ctx context.Context, from, to time.Time, limit int,
+	fn func(*model.Position) error,
+) error {
+	if limit < 0 {
+		limit = 0
+	}
+	const baseQuery = `SELECT ` + positionColumns + `
+		 FROM positions
+		 WHERE timestamp >= $1 AND timestamp <= $2
+		 ORDER BY timestamp ASC`
+	var rows pgx.Rows
+	var err error
+	if limit > 0 {
+		rows, err = r.pool.Query(ctx, baseQuery+` LIMIT $3`, from, to, limit)
+	} else {
+		rows, err = r.pool.Query(ctx, baseQuery, from, to)
+	}
+	if err != nil {
+		return fmt.Errorf("stream all positions by time range: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		p := &model.Position{}
+		if err := scanPosition(rows, p); err != nil {
+			return fmt.Errorf("scan position: %w", err)
+		}
+		if err := fn(p); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
 // scanPosition scans a single row into a Position.
 func scanPosition(scanner interface {
 	Scan(dest ...interface{}) error

@@ -53,6 +53,15 @@ func (r *mileageMockPositionRepo) GetPreviousByDevice(_ context.Context, _ int64
 func (r *mileageMockPositionRepo) GetLastMovingPosition(_ context.Context, _ int64, _ float64) (*model.Position, error) {
 	return r.lastMoving, nil
 }
+func (r *mileageMockPositionRepo) StreamByDeviceAndTimeRange(_ context.Context, _ int64, _, _ time.Time, _ int, _ func(*model.Position) error) error {
+	return nil
+}
+func (r *mileageMockPositionRepo) StreamByUserAndTimeRange(_ context.Context, _ int64, _, _ time.Time, _ int, _ func(*model.Position) error) error {
+	return nil
+}
+func (r *mileageMockPositionRepo) StreamAllByTimeRange(_ context.Context, _, _ time.Time, _ int, _ func(*model.Position) error) error {
+	return nil
+}
 
 type mileageMockDeviceRepo struct {
 	updated *model.Device

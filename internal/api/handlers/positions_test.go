@@ -399,6 +399,87 @@ func TestPositionHandler_AdminGetAllPositions_Success(t *testing.T) {
 	}
 }
 
+func TestPositionHandler_GetPositions_TimeRange_StreamsAll(t *testing.T) {
+	h, posRepo, user, device := setupPositionHandler(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	const total = 5
+	for i := range total {
+		p := &model.Position{
+			DeviceID:  device.ID,
+			Latitude:  52.0 + float64(i)*0.01,
+			Longitude: 13.0,
+			Timestamp: now.Add(time.Duration(-total+i) * time.Minute),
+		}
+		if err := posRepo.Create(ctx, p); err != nil {
+			t.Fatalf("Create position %d: %v", i, err)
+		}
+	}
+
+	url := fmt.Sprintf("/api/positions?deviceId=%d&from=%s&to=%s",
+		device.ID,
+		now.Add(-time.Hour).Format(time.RFC3339),
+		now.Add(time.Minute).Format(time.RFC3339),
+	)
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req = withUser(req, user)
+	rr := httptest.NewRecorder()
+
+	h.GetPositions(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var positions []*model.Position
+	if err := json.NewDecoder(rr.Body).Decode(&positions); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(positions) != total {
+		t.Errorf("expected all %d positions streamed, got %d", total, len(positions))
+	}
+}
+
+func TestPositionHandler_GetPositions_TimeRange_StreamsWithLimit(t *testing.T) {
+	h, posRepo, user, device := setupPositionHandler(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	for i := range 5 {
+		p := &model.Position{
+			DeviceID:  device.ID,
+			Latitude:  52.0 + float64(i)*0.01,
+			Longitude: 13.0,
+			Timestamp: now.Add(time.Duration(-5+i) * time.Minute),
+		}
+		if err := posRepo.Create(ctx, p); err != nil {
+			t.Fatalf("Create position %d: %v", i, err)
+		}
+	}
+
+	url := fmt.Sprintf("/api/positions?deviceId=%d&from=%s&to=%s&limit=3",
+		device.ID,
+		now.Add(-time.Hour).Format(time.RFC3339),
+		now.Add(time.Minute).Format(time.RFC3339),
+	)
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req = withUser(req, user)
+	rr := httptest.NewRecorder()
+
+	h.GetPositions(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+	var positions []*model.Position
+	if err := json.NewDecoder(rr.Body).Decode(&positions); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(positions) != 3 {
+		t.Errorf("expected 3 positions for limit=3, got %d", len(positions))
+	}
+}
+
 func TestPositionHandler_AdminGetAllPositions_NonAdmin(t *testing.T) {
 	h, _, user, _ := setupPositionHandler(t)
 

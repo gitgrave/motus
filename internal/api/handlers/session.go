@@ -351,7 +351,8 @@ func (h *SessionHandler) DeleteSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	displayID := chi.URLParam(r, "id")
+	// Strip the trailing ellipsis that MarshalJSON appends for display purposes.
+	displayID := strings.TrimSuffix(chi.URLParam(r, "id"), "…")
 	if displayID == "" {
 		api.RespondError(w, http.StatusBadRequest, "session ID is required")
 		return

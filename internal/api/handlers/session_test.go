@@ -678,6 +678,48 @@ func TestDeleteSession_AdminCanDeleteOtherUser(t *testing.T) {
 	}
 }
 
+// TestDeleteSession_WithEllipsis verifies that a truncated display ID sent
+// by the frontend (e.g. "20b2c47a5c1a…") is handled correctly. The ellipsis
+// is a display artifact from MarshalJSON — it must be stripped before the
+// prefix lookup so the SQL LIKE query can match the actual session token.
+func TestDeleteSession_WithEllipsis(t *testing.T) {
+	user := &model.User{ID: 1, Email: "test@example.com", Role: model.RoleUser}
+	var deletedID string
+
+	sessions := &mockSessionRepo{
+		getByIDPrefixFn: func(_ context.Context, userID int64, prefix string) (*model.Session, error) {
+			// The handler must strip "…" before calling us; reject it if present.
+			if userID == 1 && prefix == "target-sess" {
+				return &model.Session{ID: "target-sess-full-token", UserID: 1, ExpiresAt: time.Now().Add(time.Hour)}, nil
+			}
+			return nil, errors.New("not found")
+		},
+		deleteFn: func(_ context.Context, id string) error {
+			deletedID = id
+			return nil
+		},
+	}
+
+	h := handlers.NewSessionHandler(&mockUserRepo{}, sessions, nil)
+
+	// Simulate what the frontend sends: truncated ID with trailing ellipsis.
+	req := httptest.NewRequest(http.MethodDelete, "/api/sessions/target-sess…", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "target-sess…")
+	ctx := api.ContextWithUser(req.Context(), user)
+	ctx = context.WithValue(ctx, chi.RouteCtxKey, rctx)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	h.DeleteSession(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Errorf("expected status 204 for ellipsis-suffixed ID, got %d; body: %s", rr.Code, rr.Body.String())
+	}
+	if deletedID != "target-sess-full-token" {
+		t.Errorf("expected Delete called with full token, got %q", deletedID)
+	}
+}
+
 // TestDeleteSession_MissingID verifies that a request with an empty session
 // ID returns 400.
 func TestDeleteSession_MissingID(t *testing.T) {

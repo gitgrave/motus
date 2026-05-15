@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { api, fetchDevices } from '$lib/api/client';
+	import { streamPositions } from '$lib/api/stream';
 	import { currentUser } from '$lib/stores/auth';
 	import { refreshHandler } from '$lib/stores/refresh';
 	import { theme } from '$lib/stores/theme';
@@ -20,6 +21,7 @@
 	let devices: Device[] = [];
 	let positions: Position[] = [];
 	let loading = false;
+	let loadingCount = 0;
 	let error = '';
 
 	// Filters
@@ -163,6 +165,7 @@
 
 	async function loadHeatmap() {
 		loading = true;
+		loadingCount = 0;
 		error = '';
 
 		try {
@@ -172,19 +175,19 @@
 
 			if (selectedDeviceId) {
 				// Single device — direct history query.
-				positions = await api.getPositions({
-					deviceId: parseInt(selectedDeviceId),
-					from: fromISO,
-					to: toISO,
-				});
+				positions = await streamPositions(
+					{ deviceId: parseInt(selectedDeviceId), from: fromISO, to: toISO },
+					(n) => { loadingCount = n; },
+				);
 			} else {
 				// All devices — fan out per device so we get full history.
 				// The no-deviceId endpoint returns only the latest position per
 				// device, not the range history needed for a heatmap.
 				const results = await Promise.all(
 					devices.map((d) =>
-						api.getPositions({ deviceId: d.id, from: fromISO, to: toISO })
-							.catch(() => [] as Position[]),
+						streamPositions({ deviceId: d.id, from: fromISO, to: toISO }, (n) => {
+							loadingCount += n;
+						}).catch(() => [] as Position[]),
 					),
 				);
 				positions = results.flat();
@@ -371,7 +374,7 @@
 			<h2>Heatmap</h2>
 			<span class="data-count" class:loading-badge={loading}>
 				{#if loading}
-					Loading...
+					~{loadingCount.toLocaleString()} loading…
 				{:else}
 					{positions.length.toLocaleString()} points
 				{/if}
@@ -599,6 +602,9 @@
 		{#if loading}
 			<div class="map-loading">
 				<div class="spinner"></div>
+				{#if loadingCount > 0}
+					<span class="map-loading-count">~{loadingCount.toLocaleString()} pts</span>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -894,10 +900,19 @@
 		position: absolute;
 		inset: 0;
 		display: flex;
+		flex-direction: column;
 		align-items: center;
 		justify-content: center;
+		gap: var(--space-3);
 		background-color: rgba(0, 0, 0, 0.3);
 		z-index: 500;
+	}
+
+	.map-loading-count {
+		color: #fff;
+		font-size: 0.875rem;
+		font-variant-numeric: tabular-nums;
+		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 	}
 
 	.spinner {

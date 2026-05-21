@@ -175,8 +175,8 @@ func TestLogin_RememberMe(t *testing.T) {
 		{
 			name:      "with remember me",
 			remember:  true,
-			minExpiry: 87599 * time.Hour,
-			maxExpiry: 87601 * time.Hour,
+			minExpiry: 719 * time.Hour,
+			maxExpiry: 721 * time.Hour,
 		},
 	}
 
@@ -247,12 +247,12 @@ func TestLogin_RememberMe_FormEncoded(t *testing.T) {
 		t.Fatalf("expected status 200, got %d; body: %s", rr.Code, rr.Body.String())
 	}
 
-	// Verify cookie expiry is ~87600 hours (10 years / effectively indefinite).
+	// Verify cookie expiry is ~720 hours (30 days).
 	for _, c := range rr.Result().Cookies() {
 		if c.Name == "session_id" {
 			expiresIn := time.Until(c.Expires)
-			if expiresIn < 87599*time.Hour {
-				t.Errorf("expected cookie expiry ~87600h for remember=true form, got %v", expiresIn)
+			if expiresIn < 719*time.Hour || expiresIn > 721*time.Hour {
+				t.Errorf("expected cookie expiry ~720h for remember=true form, got %v", expiresIn)
 			}
 			return
 		}

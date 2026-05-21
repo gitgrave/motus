@@ -120,6 +120,46 @@ func TestSecurityHeaders_DoesNotOverrideHandlerResponse(t *testing.T) {
 	}
 }
 
+func TestSecurityHeaders_UnpkgNotInScriptOrStyleSrc(t *testing.T) {
+	handler := middleware.SecurityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	csp := rr.Header().Get("Content-Security-Policy")
+
+	scriptSrc := extractCSPDirective(csp, "script-src")
+	styleSrc := extractCSPDirective(csp, "style-src")
+
+	if strings.Contains(scriptSrc, "unpkg.com") {
+		t.Errorf("script-src must not contain unpkg.com (Leaflet JS is bundled); got: %s", scriptSrc)
+	}
+	if strings.Contains(styleSrc, "unpkg.com") {
+		t.Errorf("style-src must not contain unpkg.com (Leaflet CSS is bundled); got: %s", styleSrc)
+	}
+
+	// unpkg.com must remain in img-src for Leaflet marker icons fetched at runtime.
+	imgSrc := extractCSPDirective(csp, "img-src")
+	if !strings.Contains(imgSrc, "unpkg.com") {
+		t.Errorf("img-src must contain unpkg.com for Leaflet marker icons; got: %s", imgSrc)
+	}
+}
+
+// extractCSPDirective returns the value of a named directive from a CSP header string,
+// or an empty string if the directive is not present.
+func extractCSPDirective(csp, directive string) string {
+	for _, part := range strings.Split(csp, ";") {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, directive+" ") || part == directive {
+			return part
+		}
+	}
+	return ""
+}
+
 func TestSecurityHeaders_AppliedToAllMethods(t *testing.T) {
 	handler := middleware.SecurityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

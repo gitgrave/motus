@@ -24,10 +24,13 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		// and output encoding.
 		// worker-src 'self' allows the PWA service worker to be loaded.
 		// manifest-src 'self' allows the web app manifest for PWA install.
+		// unpkg.com is absent from script-src and style-src: Leaflet JS/CSS are
+		// bundled at build time via npm and do not need a CDN source at runtime.
+		// unpkg.com is kept in img-src for Leaflet marker icons fetched at runtime.
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; "+
-				"script-src 'self' 'unsafe-inline' https://unpkg.com; "+
-				"style-src 'self' 'unsafe-inline' https://unpkg.com; "+
+				"script-src 'self' 'unsafe-inline'; "+
+				"style-src 'self' 'unsafe-inline'; "+
 				"img-src 'self' data: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://unpkg.com; "+
 				"connect-src 'self' wss:; "+
 				"font-src 'self'; "+

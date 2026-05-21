@@ -104,6 +104,14 @@ func (h *GeofenceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		api.RespondError(w, http.StatusBadRequest, "name is required")
 		return
 	}
+	if err := ValidateDisplayName(req.Name); err != nil {
+		api.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := ValidateDescription(req.Description); err != nil {
+		api.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if req.Geometry == "" && req.Area == "" {
 		api.RespondError(w, http.StatusBadRequest, "geometry or area is required")
 		return
@@ -164,7 +172,15 @@ func (h *GeofenceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Name != "" {
+		if err := ValidateDisplayName(req.Name); err != nil {
+			api.RespondError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		existing.Name = req.Name
+	}
+	if err := ValidateDescription(req.Description); err != nil {
+		api.RespondError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	if req.Geometry != "" {
 		existing.Geometry = req.Geometry

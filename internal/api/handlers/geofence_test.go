@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -77,6 +78,73 @@ func TestGeofenceHandler_Create_Success(t *testing.T) {
 	}
 	if g.ID == 0 {
 		t.Error("expected geofence ID to be set")
+	}
+}
+
+func TestGeofenceHandler_Create_InvalidNameOrDescription(t *testing.T) {
+	h, _, user := setupGeofenceHandler(t)
+
+	scriptName := `<script>alert(1)</script>`
+	scriptDesc := `<img src=x onerror=alert(1)>`
+	longName := strings.Repeat("a", 201)
+	longDesc := strings.Repeat("b", 2001)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"script in name", fmt.Sprintf(`{"name":%q,"geometry":%q}`, scriptName, testPolygonGeoJSON)},
+		{"script in description", fmt.Sprintf(`{"name":"ok","description":%q,"geometry":%q}`, scriptDesc, testPolygonGeoJSON)},
+		{"name too long", fmt.Sprintf(`{"name":%q,"geometry":%q}`, longName, testPolygonGeoJSON)},
+		{"description too long", fmt.Sprintf(`{"name":"ok","description":%q,"geometry":%q}`, longDesc, testPolygonGeoJSON)},
+		{"NUL in name", fmt.Sprintf("{\"name\":\"foo\\u0000bar\",\"geometry\":%q}", testPolygonGeoJSON)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/geofences", bytes.NewReader([]byte(tt.body)))
+			req = withUser(req, user)
+			rr := httptest.NewRecorder()
+			h.Create(rr, req)
+			if rr.Code != http.StatusBadRequest {
+				t.Errorf("expected 400, got %d; body: %s", rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestGeofenceHandler_Update_InvalidNameOrDescription(t *testing.T) {
+	h, geoRepo, user := setupGeofenceHandler(t)
+
+	gf := &model.Geofence{Name: "Valid Fence", Geometry: testPolygonGeoJSON}
+	if err := geoRepo.Create(context.Background(), gf); err != nil {
+		t.Fatalf("create geofence: %v", err)
+	}
+	if err := geoRepo.AssociateUser(context.Background(), user.ID, gf.ID); err != nil {
+		t.Fatalf("associate user: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"script in name", `{"name":"<script>x</script>"}`},
+		{"script in description", `{"name":"ok","description":"<img src=x>"}`},
+		{"name too long", fmt.Sprintf(`{"name":%q}`, strings.Repeat("x", 201))},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/geofences/%d", gf.ID), bytes.NewReader([]byte(tt.body)))
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", fmt.Sprintf("%d", gf.ID))
+			req = req.WithContext(context.WithValue(api.ContextWithUser(req.Context(), user), chi.RouteCtxKey, rctx))
+			rr := httptest.NewRecorder()
+			h.Update(rr, req)
+			if rr.Code != http.StatusBadRequest {
+				t.Errorf("expected 400, got %d; body: %s", rr.Code, rr.Body.String())
+			}
+		})
 	}
 }
 

@@ -81,6 +81,10 @@ func (h *CalendarHandler) Create(w http.ResponseWriter, r *http.Request) {
 		api.RespondError(w, http.StatusBadRequest, "name is required")
 		return
 	}
+	if err := ValidateDisplayName(req.Name); err != nil {
+		api.RespondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if req.Data == "" {
 		api.RespondError(w, http.StatusBadRequest, "data is required")
 		return
@@ -138,6 +142,10 @@ func (h *CalendarHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Name != "" {
+		if err := ValidateDisplayName(req.Name); err != nil {
+			api.RespondError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		existing.Name = req.Name
 	}
 	if req.Data != "" {

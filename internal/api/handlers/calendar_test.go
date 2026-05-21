@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -317,5 +318,62 @@ func TestCalendarHandler_Check_Forbidden(t *testing.T) {
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
+	}
+}
+
+func TestCalendarHandler_Create_InvalidName(t *testing.T) {
+	h, _, user := setupCalendarHandler(t)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"script in name", fmt.Sprintf(`{"name":"<script>alert(1)</script>","data":%q}`, integrationICalData)},
+		{"angle bracket in name", fmt.Sprintf(`{"name":"a > b","data":%q}`, integrationICalData)},
+		{"name too long", fmt.Sprintf(`{"name":%q,"data":%q}`, strings.Repeat("x", 201), integrationICalData)},
+		{"NUL in name", fmt.Sprintf("{\"name\":\"foo\\u0000bar\",\"data\":%q}", integrationICalData)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/calendars", bytes.NewReader([]byte(tt.body)))
+			req = withUser(req, user)
+			rr := httptest.NewRecorder()
+			h.Create(rr, req)
+			if rr.Code != http.StatusBadRequest {
+				t.Errorf("expected 400, got %d; body: %s", rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestCalendarHandler_Update_InvalidName(t *testing.T) {
+	h, calRepo, user := setupCalendarHandler(t)
+
+	cal := &model.Calendar{UserID: user.ID, Name: "Valid Cal", Data: integrationICalData}
+	if err := calRepo.Create(context.Background(), cal); err != nil {
+		t.Fatalf("create calendar: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"script in name", `{"name":"<script>x</script>"}`},
+		{"name too long", fmt.Sprintf(`{"name":%q}`, strings.Repeat("x", 201))},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/calendars/%d", cal.ID), bytes.NewReader([]byte(tt.body)))
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", fmt.Sprintf("%d", cal.ID))
+			req = req.WithContext(context.WithValue(api.ContextWithUser(req.Context(), user), chi.RouteCtxKey, rctx))
+			rr := httptest.NewRecorder()
+			h.Update(rr, req)
+			if rr.Code != http.StatusBadRequest {
+				t.Errorf("expected 400, got %d; body: %s", rr.Code, rr.Body.String())
+			}
+		})
 	}
 }

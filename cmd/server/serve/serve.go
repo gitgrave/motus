@@ -4,7 +4,6 @@ package serve
 import (
 	"context"
 	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -340,7 +339,7 @@ func Run() {
 	adminMW := middleware.RequireAdmin
 
 	// CSRF protection: load or generate the 32-byte secret key.
-	csrfSecret := loadCSRFSecret(cfg.Security.CSRFSecret)
+	csrfSecret := loadCSRFSecret(cfg.Security.CSRFSecret, cfg.Security.Env)
 	csrfSecure := cfg.Security.Env != "development"
 
 	routerCfg := api.RouterConfig{
@@ -632,26 +631,12 @@ func Run() {
 	slog.Info("server stopped")
 }
 
-// parseCSRFSecret decodes a hex-encoded 32-byte CSRF secret. Returns an error
-// on invalid hex or wrong length.
-func parseCSRFSecret(hexSecret string) ([]byte, error) {
-	secret, err := hex.DecodeString(hexSecret)
-	if err != nil {
-		return nil, fmt.Errorf("MOTUS_CSRF_SECRET is not valid hex: %w", err)
-	}
-	if len(secret) != 32 {
-		return nil, fmt.Errorf("MOTUS_CSRF_SECRET must be exactly 32 bytes (64 hex chars), got %d bytes", len(secret))
-	}
-	return secret, nil
-}
-
-// loadCSRFSecret decodes a hex-encoded CSRF secret from the environment, or
-// generates a random 32-byte key if the secret is empty. A generated key means
-// CSRF tokens will not survive server restarts, which is acceptable for single
-// instances but not for multi-pod deployments.
-func loadCSRFSecret(hexSecret string) []byte {
+// loadCSRFSecret returns the 32-byte CSRF secret. In non-development
+// environments config.Validate() already guarantees a non-empty, valid secret,
+// so reaching the empty branch in production is a programming error.
+func loadCSRFSecret(hexSecret, env string) []byte {
 	if hexSecret != "" {
-		secret, err := parseCSRFSecret(hexSecret)
+		secret, err := config.ParseCSRFSecret(hexSecret)
 		if err != nil {
 			slog.Error("invalid CSRF secret", slog.Any("error", err))
 			os.Exit(1)
@@ -659,7 +644,12 @@ func loadCSRFSecret(hexSecret string) []byte {
 		return secret
 	}
 
-	// Generate a random 32-byte key.
+	if env != "development" {
+		// Should be unreachable: config.Validate() rejects this combination.
+		panic("MOTUS_CSRF_SECRET must be set in non-development environments")
+	}
+
+	// Development only: generate a random 32-byte key per restart.
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
 		slog.Error("failed to generate CSRF secret", slog.Any("error", err))

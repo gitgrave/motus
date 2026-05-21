@@ -80,6 +80,10 @@ The motus binary is at `/motus` (not `/app/motus`). ENTRYPOINT is `["/motus"]`, 
 - Auth: httpOnly cookie `session_id`
 - CSRF: gorilla/csrf double-submit cookie pattern
 - Login endpoint is CSRF-exempt and returns CSRF token in response header
+- `MOTUS_CSRF_SECRET` is **required** in non-development environments. The server
+  refuses to start without it. Generate with `openssl rand -hex 32`. All pods in a
+  multi-pod deployment must share the same secret. Development mode (`MOTUS_ENV=development`)
+  allows an empty secret and falls back to a per-restart random key.
 
 ### H02 relay requires numeric-only device IMEIs
 The H02 protocol server supports an optional relay mode (`MOTUS_GPS_H02_RELAY_TARGET`)

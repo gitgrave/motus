@@ -690,9 +690,74 @@ func validConfig() *Config {
 				MaxConnIdleTime: 30 * time.Minute,
 			},
 		},
-		Server:  ServerConfig{Port: "8080"},
-		GPS:     GPSConfig{H02Port: "5013", WatchPort: "5093"},
-		Device:  DeviceConfig{TimeoutMinutes: 5, CheckIntervalMinutes: 1},
-		Metrics: MetricsConfig{Port: "9090", Enabled: true},
+		Server:   ServerConfig{Port: "8080"},
+		GPS:      GPSConfig{H02Port: "5013", WatchPort: "5093"},
+		Device:   DeviceConfig{TimeoutMinutes: 5, CheckIntervalMinutes: 1},
+		Metrics:  MetricsConfig{Port: "9090", Enabled: true},
+		Security: SecurityConfig{Env: "production", CSRFSecret: "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"},
+	}
+}
+
+func TestValidate_CSRFSecret(t *testing.T) {
+	validHex := "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+	tests := []struct {
+		name    string
+		modify  func(*Config)
+		wantErr string
+	}{
+		{
+			name:   "production with valid secret passes",
+			modify: func(c *Config) { c.Security.Env = "production"; c.Security.CSRFSecret = validHex },
+		},
+		{
+			name:    "production without secret fails",
+			modify:  func(c *Config) { c.Security.Env = "production"; c.Security.CSRFSecret = "" },
+			wantErr: "MOTUS_CSRF_SECRET must be set",
+		},
+		{
+			name:    "production with invalid hex fails",
+			modify:  func(c *Config) { c.Security.Env = "production"; c.Security.CSRFSecret = "not-hex!!!" },
+			wantErr: "MOTUS_CSRF_SECRET",
+		},
+		{
+			name:    "production with wrong length fails",
+			modify:  func(c *Config) { c.Security.Env = "production"; c.Security.CSRFSecret = "deadbeef" },
+			wantErr: "MOTUS_CSRF_SECRET",
+		},
+		{
+			name:   "development with empty secret passes",
+			modify: func(c *Config) { c.Security.Env = "development"; c.Security.CSRFSecret = "" },
+		},
+		{
+			name:   "development with valid secret passes",
+			modify: func(c *Config) { c.Security.Env = "development"; c.Security.CSRFSecret = validHex },
+		},
+		{
+			name:    "empty env (defaults to production) without secret fails",
+			modify:  func(c *Config) { c.Security.Env = ""; c.Security.CSRFSecret = "" },
+			wantErr: "MOTUS_CSRF_SECRET must be set",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validConfig()
+			tt.modify(cfg)
+
+			err := cfg.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
+				return
+			}
+
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error %q should contain %q", err.Error(), tt.wantErr)
+			}
+		})
 	}
 }

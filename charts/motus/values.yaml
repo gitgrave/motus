@@ -84,9 +84,9 @@ config:
   server:
     port: "8080"
   csrf:
-    # REQUIRED for production deployments with multiple pods
+    # REQUIRED in production. The server will refuse to start if this is unset.
     # Generate with: openssl rand -hex 32
-    # If empty, a random key is generated at startup (tokens won't survive restarts)
+    # All pods must share the same secret so CSRF tokens are valid across replicas.
     secret: ""
   gps: {}  # GPS protocol ports and relay targets are configured under serviceGPS.ports
 

@@ -5,18 +5,14 @@ import (
 	"testing"
 )
 
-func TestParseCSRFSecret_Valid(t *testing.T) {
-	// 32 random bytes encoded as hex
+func TestLoadCSRFSecret_ValidHex(t *testing.T) {
 	raw := make([]byte, 32)
 	for i := range raw {
 		raw[i] = byte(i)
 	}
 	hexStr := hex.EncodeToString(raw)
 
-	got, err := parseCSRFSecret(hexStr)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	got := loadCSRFSecret(hexStr, "production")
 	if len(got) != 32 {
 		t.Errorf("got %d bytes, want 32", len(got))
 	}
@@ -27,37 +23,21 @@ func TestParseCSRFSecret_Valid(t *testing.T) {
 	}
 }
 
-func TestParseCSRFSecret_InvalidHex(t *testing.T) {
-	_, err := parseCSRFSecret("not-valid-hex!!!")
-	if err == nil {
-		t.Error("expected error for invalid hex")
-	}
-}
-
-func TestParseCSRFSecret_WrongLength(t *testing.T) {
-	// 16 bytes (too short)
-	raw := make([]byte, 16)
-	hexStr := hex.EncodeToString(raw)
-	_, err := parseCSRFSecret(hexStr)
-	if err == nil {
-		t.Error("expected error for wrong length")
-	}
-}
-
-func TestParseCSRFSecret_TooLong(t *testing.T) {
-	// 64 bytes (too long)
-	raw := make([]byte, 64)
-	hexStr := hex.EncodeToString(raw)
-	_, err := parseCSRFSecret(hexStr)
-	if err == nil {
-		t.Error("expected error for too-long secret")
-	}
-}
-
-func TestLoadCSRFSecret_Empty(t *testing.T) {
-	// Empty string should generate a random key without panic.
-	secret := loadCSRFSecret("")
+func TestLoadCSRFSecret_EmptyDevelopment(t *testing.T) {
+	// Empty secret in development mode generates a random 32-byte key.
+	secret := loadCSRFSecret("", "development")
 	if len(secret) != 32 {
 		t.Errorf("got %d bytes, want 32", len(secret))
 	}
+}
+
+func TestLoadCSRFSecret_EmptyProductionPanics(t *testing.T) {
+	// Empty secret in production is a programming error (config.Validate
+	// prevents it at startup), so loadCSRFSecret panics.
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic for empty secret in production, got none")
+		}
+	}()
+	loadCSRFSecret("", "production")
 }

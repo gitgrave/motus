@@ -144,7 +144,7 @@
 				View and manage your active login sessions. Revoking a session will immediately log it out.
 			</p>
 		</div>
-		{#if otherSessionCount > 1}
+		{#if otherSessionCount > 0}
 			<Button variant="danger" size="sm" on:click={requestRevokeAll}>
 				Revoke all other sessions
 			</Button>

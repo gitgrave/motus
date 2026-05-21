@@ -99,7 +99,10 @@ resources:
     memory: 128Mi
 
 # Redis Configuration
-# For cross-pod WebSocket broadcasting with multiple replicas
+# Enables cross-pod WebSocket broadcasting and cluster-wide login rate limiting.
+# When Redis is disabled, login rate limits are enforced per-pod (each replica
+# enforces its own limit independently). Enable Redis for multi-replica deployments
+# to get consistent brute-force protection across all pods.
 redis:
   enabled: false  # Disabled by default (single replica is sufficient)
 

@@ -355,8 +355,17 @@ func Run() {
 	csrfSecret := loadCSRFSecret(cfg.Security.CSRFSecret, cfg.Security.Env)
 	csrfSecure := cfg.Security.Env != "development"
 
+	// Login rate limiter: Redis-backed (cluster-wide) when Redis is available,
+	// in-process (per-pod only) otherwise.
+	loginRateLimit := middleware.LoginRateLimit()
+	if redisClient != nil {
+		loginRateLimit = middleware.NewRedisLoginRateLimit(redisClient, middleware.DefaultLoginRateLimit())
+	} else if cfg.Redis.Enabled {
+		slog.Warn("Redis enabled but unavailable — login rate limit is per-pod only")
+	}
+
 	routerCfg := api.RouterConfig{
-		LoginRateLimit:  middleware.LoginRateLimit(),
+		LoginRateLimit:  loginRateLimit,
 		APIRateLimit:    middleware.APIRateLimit(),
 		SecurityHeaders: middleware.SecurityHeaders,
 		WriteAccess:     middleware.RequireWriteAccess,

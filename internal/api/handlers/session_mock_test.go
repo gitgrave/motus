@@ -184,6 +184,9 @@ func (m *mockSessionRepo) Delete(ctx context.Context, id string) error {
 	return nil
 }
 func (m *mockSessionRepo) UpdateLastSeen(_ context.Context, _, _, _ string) error { return nil }
+func (m *mockSessionRepo) UpdateExpiry(_ context.Context, _ string, _ time.Time) error {
+	return nil
+}
 func (m *mockSessionRepo) ListByUser(ctx context.Context, userID int64) ([]*model.Session, error) {
 	if m.listByUserFn != nil {
 		return m.listByUserFn(ctx, userID)
@@ -210,7 +213,7 @@ func TestGetCurrentSession_ApiKeyToken(t *testing.T) {
 	sessions := &mockSessionRepo{
 		createWithApiKeyFn: func(_ context.Context, userID int64, apiKeyID int64, _ time.Time, _ bool) (*model.Session, error) {
 			createdWithApiKeyID = apiKeyID
-			return &model.Session{ID: "mock-session-id", UserID: userID, ApiKeyID: &apiKeyID, ExpiresAt: time.Now().Add(10 * 365 * 24 * time.Hour)}, nil
+			return &model.Session{ID: "mock-session-id", UserID: userID, ApiKeyID: &apiKeyID, ExpiresAt: time.Now().Add(30 * 24 * time.Hour)}, nil
 		},
 	}
 	apiKeys := &mockApiKeyRepo{
@@ -500,8 +503,8 @@ func TestGetCurrentSession_LegacyToken_NoApiKeyLinked(t *testing.T) {
 // expiry duration (sessionExpiryRememberMe = 10 years), so the session
 // survives browser restarts.
 func TestGetCurrentSession_TokenLoginExpiry(t *testing.T) {
-	// expectedExpiry matches handlers.sessionExpiryRememberMe (10 years = 87600 hours).
-	expectedExpiry := 87600 * time.Hour
+	// expectedExpiry matches handlers.sessionExpiryRememberMe (30 days).
+	expectedExpiry := 30 * 24 * time.Hour
 
 	t.Run("api key token", func(t *testing.T) {
 		testUser := &model.User{ID: 42, Email: "apikey@example.com", Name: "API Key User", Role: "user"}

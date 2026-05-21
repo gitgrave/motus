@@ -21,9 +21,10 @@ const (
 	// sessionExpiryDefault is the duration for standard login sessions (24 hours).
 	sessionExpiryDefault = 24 * time.Hour
 
-	// sessionExpiryRememberMe is the duration for "remember me" and token-based
-	// login sessions (10 years - effectively indefinite).
-	sessionExpiryRememberMe = 10 * 365 * 24 * time.Hour
+	// sessionExpiryRememberMe is the initial duration for "remember me" and
+	// token-based login sessions (30 days). Active sessions are extended via
+	// session rolling in the auth middleware before this window closes.
+	sessionExpiryRememberMe = 30 * 24 * time.Hour
 )
 
 // isSecureEnvironment returns true when running in a production-like

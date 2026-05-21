@@ -65,7 +65,8 @@ func (m *mockUserRepo) GetByToken(ctx context.Context, token string) (*model.Use
 
 // mockSessionRepo satisfies repository.SessionRepo for middleware tests.
 type mockSessionRepo struct {
-	getByIDFn func(ctx context.Context, id string) (*model.Session, error)
+	getByIDFn      func(ctx context.Context, id string) (*model.Session, error)
+	updateExpiryFn func(ctx context.Context, id string, expiresAt time.Time)
 }
 
 var _ repository.SessionRepo = (*mockSessionRepo)(nil)
@@ -96,6 +97,12 @@ func (m *mockSessionRepo) GetByIDPrefix(_ context.Context, _ int64, _ string) (*
 	return nil, errors.New("not found")
 }
 func (m *mockSessionRepo) UpdateLastSeen(_ context.Context, _, _, _ string) error { return nil }
+func (m *mockSessionRepo) UpdateExpiry(ctx context.Context, id string, expiresAt time.Time) error {
+	if m.updateExpiryFn != nil {
+		m.updateExpiryFn(ctx, id, expiresAt)
+	}
+	return nil
+}
 
 // mockApiKeyRepo satisfies repository.ApiKeyRepo for middleware tests.
 type mockApiKeyRepo struct {
@@ -265,6 +272,173 @@ func TestAuthMiddleware_NilExpiresAt_NeverExpires(t *testing.T) {
 	}
 	if !handlerCalled {
 		t.Error("expected handler to be called for key without expiration")
+	}
+}
+
+// --- Session rolling tests ---
+
+func TestAuthMiddleware_RememberMeSessionRollsWhenNearExpiry_Cookie(t *testing.T) {
+	rolledCh := make(chan time.Time, 1)
+
+	nearExpiry := time.Now().Add(10 * 24 * time.Hour) // < 15-day threshold
+	sessionRepo := &mockSessionRepo{
+		getByIDFn: func(_ context.Context, _ string) (*model.Session, error) {
+			return &model.Session{
+				ID:         "sess-roll",
+				UserID:     1,
+				RememberMe: true,
+				ExpiresAt:  nearExpiry,
+			}, nil
+		},
+		updateExpiryFn: func(_ context.Context, _ string, expiresAt time.Time) {
+			rolledCh <- expiresAt
+		},
+	}
+	userRepo := &mockUserRepo{
+		getByIDFn: func(_ context.Context, _ int64) (*model.User, error) {
+			return &model.User{ID: 1, Email: "test@example.com"}, nil
+		},
+	}
+
+	mw := middleware.Auth(userRepo, sessionRepo, &mockApiKeyRepo{})
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/devices", nil)
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "sess-roll"})
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	select {
+	case newExpiry := <-rolledCh:
+		// New expiry should be ~30 days from now.
+		if time.Until(newExpiry) < 29*24*time.Hour || time.Until(newExpiry) > 31*24*time.Hour {
+			t.Errorf("expected new expiry ~30 days from now, got %v", time.Until(newExpiry))
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Error("expected UpdateExpiry to be called for near-expiry remember-me session (cookie path)")
+	}
+}
+
+func TestAuthMiddleware_RememberMeSessionRollsWhenNearExpiry_XAuthToken(t *testing.T) {
+	rolledCh := make(chan time.Time, 1)
+
+	nearExpiry := time.Now().Add(5 * 24 * time.Hour) // < 15-day threshold
+	sessionRepo := &mockSessionRepo{
+		getByIDFn: func(_ context.Context, _ string) (*model.Session, error) {
+			return &model.Session{
+				ID:         "sess-roll-xat",
+				UserID:     1,
+				RememberMe: true,
+				ExpiresAt:  nearExpiry,
+			}, nil
+		},
+		updateExpiryFn: func(_ context.Context, _ string, expiresAt time.Time) {
+			rolledCh <- expiresAt
+		},
+	}
+	userRepo := &mockUserRepo{
+		getByIDFn: func(_ context.Context, _ int64) (*model.User, error) {
+			return &model.User{ID: 1, Email: "test@example.com"}, nil
+		},
+	}
+
+	mw := middleware.Auth(userRepo, sessionRepo, &mockApiKeyRepo{})
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/devices", nil)
+	req.Header.Set("X-Auth-Token", "sess-roll-xat")
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	select {
+	case <-rolledCh:
+		// Rolling fired — pass.
+	case <-time.After(500 * time.Millisecond):
+		t.Error("expected UpdateExpiry to be called for near-expiry remember-me session (X-Auth-Token path)")
+	}
+}
+
+func TestAuthMiddleware_NonRememberMeSession_NotRolled(t *testing.T) {
+	nearExpiry := time.Now().Add(5 * 24 * time.Hour)
+	sessionRepo := &mockSessionRepo{
+		getByIDFn: func(_ context.Context, _ string) (*model.Session, error) {
+			return &model.Session{
+				ID:         "sess-noroll",
+				UserID:     1,
+				RememberMe: false, // not remember-me
+				ExpiresAt:  nearExpiry,
+			}, nil
+		},
+		updateExpiryFn: func(_ context.Context, _ string, _ time.Time) {
+			// Should never be called.
+		},
+	}
+	rolledCh := make(chan struct{}, 1)
+	sessionRepo.updateExpiryFn = func(_ context.Context, _ string, _ time.Time) {
+		rolledCh <- struct{}{}
+	}
+	userRepo := &mockUserRepo{
+		getByIDFn: func(_ context.Context, _ int64) (*model.User, error) {
+			return &model.User{ID: 1, Email: "test@example.com"}, nil
+		},
+	}
+
+	mw := middleware.Auth(userRepo, sessionRepo, &mockApiKeyRepo{})
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/devices", nil)
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "sess-noroll"})
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	select {
+	case <-rolledCh:
+		t.Error("UpdateExpiry should NOT be called for non-remember-me session")
+	case <-time.After(200 * time.Millisecond):
+		// Good — not rolled.
+	}
+}
+
+func TestAuthMiddleware_RememberMeSessionFarFromExpiry_NotRolled(t *testing.T) {
+	farExpiry := time.Now().Add(25 * 24 * time.Hour) // > 15-day threshold
+	rolledCh := make(chan struct{}, 1)
+
+	sessionRepo := &mockSessionRepo{
+		getByIDFn: func(_ context.Context, _ string) (*model.Session, error) {
+			return &model.Session{
+				ID:         "sess-far",
+				UserID:     1,
+				RememberMe: true,
+				ExpiresAt:  farExpiry,
+			}, nil
+		},
+		updateExpiryFn: func(_ context.Context, _ string, _ time.Time) {
+			rolledCh <- struct{}{}
+		},
+	}
+	userRepo := &mockUserRepo{
+		getByIDFn: func(_ context.Context, _ int64) (*model.User, error) {
+			return &model.User{ID: 1, Email: "test@example.com"}, nil
+		},
+	}
+
+	mw := middleware.Auth(userRepo, sessionRepo, &mockApiKeyRepo{})
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/devices", nil)
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "sess-far"})
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	select {
+	case <-rolledCh:
+		t.Error("UpdateExpiry should NOT be called when more than 15 days remain")
+	case <-time.After(200 * time.Millisecond):
+		// Good — not rolled.
 	}
 }
 

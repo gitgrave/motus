@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/tamcore/motus/internal/api"
 	"github.com/tamcore/motus/internal/audit"
@@ -82,6 +83,10 @@ func Auth(users repository.UserRepo, sessions repository.SessionRepo, apiKeys re
 						next.ServeHTTP(w, r.WithContext(ctx))
 						go sessions.UpdateLastSeen(context.Background(), session.ID, //nolint:errcheck
 							audit.ExtractIP(r), r.Header.Get("User-Agent"))
+						if session.RememberMe && time.Until(session.ExpiresAt) < 15*24*time.Hour {
+							go sessions.UpdateExpiry(context.Background(), session.ID, //nolint:errcheck
+								time.Now().Add(30*24*time.Hour))
+						}
 						return
 					}
 				}
@@ -117,6 +122,10 @@ func Auth(users repository.UserRepo, sessions repository.SessionRepo, apiKeys re
 						next.ServeHTTP(w, r.WithContext(ctx))
 						go sessions.UpdateLastSeen(context.Background(), session.ID, //nolint:errcheck
 							audit.ExtractIP(r), r.Header.Get("User-Agent"))
+						if session.RememberMe && time.Until(session.ExpiresAt) < 15*24*time.Hour {
+							go sessions.UpdateExpiry(context.Background(), session.ID, //nolint:errcheck
+								time.Now().Add(30*24*time.Hour))
+						}
 						return
 					}
 				}

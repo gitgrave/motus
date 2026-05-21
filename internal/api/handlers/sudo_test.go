@@ -111,6 +111,9 @@ func (m *sudoTestSessionRepo) ListByUser(_ context.Context, _ int64) ([]*model.S
 	return nil, nil
 }
 func (m *sudoTestSessionRepo) UpdateLastSeen(_ context.Context, _, _, _ string) error { return nil }
+func (m *sudoTestSessionRepo) UpdateExpiry(_ context.Context, _ string, _ time.Time) error {
+	return nil
+}
 
 func TestStartSudo_RequiresAdmin(t *testing.T) {
 	h := NewSudoHandler(nil, nil)

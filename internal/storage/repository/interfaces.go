@@ -64,6 +64,7 @@ type SessionRepo interface {
 	Delete(ctx context.Context, id string) error
 	ListByUser(ctx context.Context, userID int64) ([]*model.Session, error)
 	UpdateLastSeen(ctx context.Context, id, ip, userAgent string) error
+	UpdateExpiry(ctx context.Context, id string, expiresAt time.Time) error
 }
 
 // PositionRepo defines the operations on the positions table used by

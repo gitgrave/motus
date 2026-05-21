@@ -182,6 +182,18 @@ func (r *SessionRepository) ListByUser(ctx context.Context, userID int64) ([]*mo
 	return sessions, nil
 }
 
+// UpdateExpiry extends the expiry of a session to the given time.
+func (r *SessionRepository) UpdateExpiry(ctx context.Context, id string, expiresAt time.Time) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE sessions SET expires_at = $1 WHERE id = $2`,
+		expiresAt, id,
+	)
+	if err != nil {
+		return fmt.Errorf("update session expiry: %w", err)
+	}
+	return nil
+}
+
 // UpdateLastSeen records the IP address and user agent of the most recent
 // authenticated request for this session.
 func (r *SessionRepository) UpdateLastSeen(ctx context.Context, id, ip, userAgent string) error {

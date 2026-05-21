@@ -107,12 +107,13 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*model.User, er
 	return u, nil
 }
 
-// GetByToken retrieves a user by their API token.
+// GetByToken retrieves a user by their raw API token.
+// The token is hashed before lookup so the database never stores plaintext.
 func (r *UserRepository) GetByToken(ctx context.Context, token string) (*model.User, error) {
 	u := &model.User{}
 	err := r.pool.QueryRow(ctx,
 		`SELECT id, email, COALESCE(password_hash, ''), name, role, token, created_at, oidc_subject, oidc_issuer
-		 FROM users WHERE token = $1`, token,
+		 FROM users WHERE token = $1`, hashToken(token),
 	).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Role, &u.Token, &u.CreatedAt, &u.OIDCSubject, &u.OIDCIssuer)
 	if err != nil {
 		return nil, fmt.Errorf("get user by token: %w", err)
@@ -225,7 +226,8 @@ func (r *UserRepository) UnassignDevice(ctx context.Context, userID, deviceID in
 	return nil
 }
 
-// GenerateToken creates a random API token and stores it for the user.
+// GenerateToken creates a random API token, stores its SHA-256 hash, and
+// returns the raw token to the caller.
 func (r *UserRepository) GenerateToken(ctx context.Context, userID int64) (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -235,7 +237,7 @@ func (r *UserRepository) GenerateToken(ctx context.Context, userID int64) (strin
 
 	_, err := r.pool.Exec(ctx,
 		`UPDATE users SET token = $1 WHERE id = $2`,
-		token, userID,
+		hashToken(token), userID,
 	)
 	if err != nil {
 		return "", fmt.Errorf("store token: %w", err)

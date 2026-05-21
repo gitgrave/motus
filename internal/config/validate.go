@@ -39,10 +39,13 @@ func (c *Config) Validate() error {
 		errs = append(errs, "database: either POSTGRES_URI or MOTUS_DATABASE_HOST must be set")
 	}
 
-	// Database port validation (only when using individual fields).
+	// Database port and password validation (only when using individual fields).
 	if c.Database.URI == "" {
 		if err := validatePort(c.Database.Port, "MOTUS_DATABASE_PORT"); err != nil {
 			errs = append(errs, err.Error())
+		}
+		if c.Database.Password == "" {
+			errs = append(errs, "MOTUS_DATABASE_PASSWORD must be set (no default; set POSTGRES_URI to skip individual fields)")
 		}
 	}
 

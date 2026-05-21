@@ -120,6 +120,19 @@ func TestValidate_DatabaseConfig(t *testing.T) {
 			modify: func(c *Config) { c.Database.Host = "localhost"; c.Database.URI = "" },
 		},
 		{
+			name:    "no password and no URI",
+			modify:  func(c *Config) { c.Database.Password = ""; c.Database.URI = "" },
+			wantErr: "MOTUS_DATABASE_PASSWORD must be set",
+		},
+		{
+			name: "no password but URI set",
+			modify: func(c *Config) {
+				c.Database.Password = ""
+				c.Database.URI = "postgres://localhost/db"
+				c.Database.Host = ""
+			},
+		},
+		{
 			name:   "URI set no host",
 			modify: func(c *Config) { c.Database.URI = "postgres://localhost/db"; c.Database.Host = "" },
 		},
@@ -664,11 +677,12 @@ func TestValidate_GeocodingConfig(t *testing.T) {
 func validConfig() *Config {
 	return &Config{
 		Database: DatabaseConfig{
-			Host:    "localhost",
-			Port:    "5432",
-			User:    "motus",
-			Name:    "motus",
-			SSLMode: "disable",
+			Host:     "localhost",
+			Port:     "5432",
+			User:     "motus",
+			Password: "motus",
+			Name:     "motus",
+			SSLMode:  "disable",
 			Pool: PoolConfig{
 				MaxConns:        25,
 				MinConns:        5,

@@ -198,7 +198,7 @@ Database password helper
 */}}
 {{- define "motus.database.password" -}}
 {{- if .Values.postgres.enabled }}
-{{- .Values.postgres.password }}
+{{- required "postgres.password is required — no default is provided" .Values.postgres.password }}
 {{- else }}
 {{- .Values.externalDatabase.password }}
 {{- end }}

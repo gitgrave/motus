@@ -269,7 +269,7 @@ func LoadFromEnv() (*Config, error) {
 			Host:     getEnv("MOTUS_DATABASE_HOST", "localhost"),
 			Port:     getEnv("MOTUS_DATABASE_PORT", "5432"),
 			User:     getEnv("MOTUS_DATABASE_USER", "motus"),
-			Password: getEnv("MOTUS_DATABASE_PASSWORD", "motus"),
+			Password: getEnv("MOTUS_DATABASE_PASSWORD", ""),
 			Name:     getEnv("MOTUS_DATABASE_NAME", "motus"),
 			SSLMode:  getEnv("MOTUS_DATABASE_SSLMODE", "require"),
 			Pool: PoolConfig{

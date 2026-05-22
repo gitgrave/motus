@@ -11,6 +11,9 @@
  */
 
 import type * as L from "leaflet";
+import markerIconUrl from "leaflet/dist/images/marker-icon.png";
+import markerIconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
+import markerShadowUrl from "leaflet/dist/images/marker-shadow.png";
 
 export interface UseLeafletOptions {
   /** Map center as [lat, lng]. Defaults to [49.79, 9.95]. */
@@ -32,13 +35,11 @@ const DEFAULT_ZOOM = 6;
 const DEFAULT_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const DEFAULT_TILE_ATTRIBUTION = "&copy; OpenStreetMap contributors";
 
-// Leaflet marker icon CDN URLs (fixes broken paths in bundled environments)
-const MARKER_ICON_URL =
-  "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png";
-const MARKER_ICON_RETINA_URL =
-  "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png";
-const MARKER_SHADOW_URL =
-  "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png";
+// Leaflet marker icon assets bundled locally via Vite (fixes broken paths in
+// bundled environments without any runtime CDN dependency).
+export const LEAFLET_MARKER_ICON_URL = markerIconUrl;
+export const LEAFLET_MARKER_ICON_RETINA_URL = markerIconRetinaUrl;
+export const LEAFLET_MARKER_SHADOW_URL = markerShadowUrl;
 
 export interface UseLeafletReturn {
   /** Initialize the map on the given container element. */
@@ -140,8 +141,8 @@ function fixMarkerIcons(L: typeof import("leaflet")): void {
     delete proto._getIconUrl;
   }
   L.Icon.Default.mergeOptions({
-    iconRetinaUrl: MARKER_ICON_RETINA_URL,
-    iconUrl: MARKER_ICON_URL,
-    shadowUrl: MARKER_SHADOW_URL,
+    iconRetinaUrl: LEAFLET_MARKER_ICON_RETINA_URL,
+    iconUrl: LEAFLET_MARKER_ICON_URL,
+    shadowUrl: LEAFLET_MARKER_SHADOW_URL,
   });
 }

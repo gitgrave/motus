@@ -31,11 +31,21 @@ func (r *DeviceRegistry) Deregister(uniqueID string) {
 
 // Send writes data to the outbound channel for uniqueID.
 // Returns true if the device is online and the send succeeded, false otherwise.
-func (r *DeviceRegistry) Send(uniqueID string, data []byte) bool {
+//
+// Channels stored in the registry are owned by the connection goroutine and are
+// never closed while registered. The recover below is a belt-and-braces guard
+// against a future regression that violates that invariant.
+func (r *DeviceRegistry) Send(uniqueID string, data []byte) (ok bool) {
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
+
 	r.mu.RLock()
-	ch, ok := r.conns[uniqueID]
+	ch, found := r.conns[uniqueID]
 	r.mu.RUnlock()
-	if !ok {
+	if !found {
 		return false
 	}
 	select {

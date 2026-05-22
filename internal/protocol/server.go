@@ -338,34 +338,43 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	_ = conn.SetReadDeadline(time.Now().Add(readTimeout))
 
 	// Outbound channel: commands are written here and forwarded to the device.
+	// outCh is intentionally never closed — closing it from the consumer side
+	// would race with in-flight Send calls and cause a send-on-closed-channel
+	// panic. The done channel signals the writer goroutine to exit instead.
 	outCh := make(chan []byte, 16)
-	defer close(outCh)
+	done := make(chan struct{})
+	defer close(done)
 
 	// Write goroutine: reads from outCh and sends to the device connection.
 	// On write error, closes the connection so the scanner loop exits
 	// naturally and runs the post-loop cleanup (Deregister, markDeviceOffline).
 	go func() {
-		for data := range outCh {
-			_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-			if _, err := conn.Write(data); err != nil {
-				s.log().Warn("write to device failed",
+		for {
+			select {
+			case <-done:
+				return
+			case data := <-outCh:
+				_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+				if _, err := conn.Write(data); err != nil {
+					s.log().Warn("write to device failed",
+						slog.String("type", "gps"),
+						slog.String("protocol", s.name),
+						slog.String("conn", id),
+						slog.Any("error", err),
+					)
+					_ = conn.Close() // wake the scanner so it exits promptly
+					return
+				}
+				// Reset the write deadline so the scanner loop's fmt.Fprintf
+				// calls are not affected by this per-command deadline.
+				_ = conn.SetWriteDeadline(time.Time{})
+				s.log().Debug("tx (command)",
 					slog.String("type", "gps"),
 					slog.String("protocol", s.name),
 					slog.String("conn", id),
-					slog.Any("error", err),
+					slog.String("data", truncate(string(data), 200)),
 				)
-				_ = conn.Close() // wake the scanner so it exits promptly
-				return
 			}
-			// Reset the write deadline so the scanner loop's fmt.Fprintf
-			// calls are not affected by this per-command deadline.
-			_ = conn.SetWriteDeadline(time.Time{})
-			s.log().Debug("tx (command)",
-				slog.String("type", "gps"),
-				slog.String("protocol", s.name),
-				slog.String("conn", id),
-				slog.String("data", truncate(string(data), 200)),
-			)
 		}
 	}()
 

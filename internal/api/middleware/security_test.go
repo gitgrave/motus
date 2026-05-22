@@ -62,7 +62,7 @@ func TestSecurityHeaders_CSPPresent(t *testing.T) {
 		"connect-src 'self' wss:",
 		"worker-src 'self'",
 		"manifest-src 'self'",
-		"img-src 'self' data: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://unpkg.com",
+		"img-src 'self' data: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com",
 	}
 	for _, d := range directives {
 		if !strings.Contains(csp, d) {
@@ -141,10 +141,10 @@ func TestSecurityHeaders_UnpkgNotInScriptOrStyleSrc(t *testing.T) {
 		t.Errorf("style-src must not contain unpkg.com (Leaflet CSS is bundled); got: %s", styleSrc)
 	}
 
-	// unpkg.com must remain in img-src for Leaflet marker icons fetched at runtime.
+	// unpkg.com must NOT appear in img-src: Leaflet marker icons are now bundled locally.
 	imgSrc := extractCSPDirective(csp, "img-src")
-	if !strings.Contains(imgSrc, "unpkg.com") {
-		t.Errorf("img-src must contain unpkg.com for Leaflet marker icons; got: %s", imgSrc)
+	if strings.Contains(imgSrc, "unpkg.com") {
+		t.Errorf("img-src must not contain unpkg.com (marker icons are bundled); got: %s", imgSrc)
 	}
 }
 
